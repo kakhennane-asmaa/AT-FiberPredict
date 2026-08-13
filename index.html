@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v3.2</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v3.3</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1000px; margin: 0 auto; }
@@ -28,11 +28,11 @@
 </head>
 <body>
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 3.2</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 3.3 (تعريف مستقبلي للعطل)</p>
 
     <div class="card">
         <h2>🔬 محاكاة واقعية لـ 200 مشترك</h2>
-        <p>يولد النظام بيانات قياسات Rx لآخر 8 أشهر، مع معرفة مسبقة بالمشتركين الذين سيتعطلون فعليًا، ثم يطبق خوارزمية تنبؤ محسّنة ويقيس دقتها.</p>
+        <p>يولد النظام بيانات قياسات Rx لآخر 8 أشهر، ويحاكي 3 أشهر إضافية مستقبلية لتحديد من سيتعطل فعلاً خلالها، ثم يطبق خوارزمية التنبؤ ويقيس دقتها.</p>
         <div class="seed-box">
             <label for="seedInput"><strong>بذرة المحاكاة (Seed):</strong></label>
             <input type="number" id="seedInput" value="42" min="1" max="9999">
@@ -74,6 +74,7 @@
     <script>
         const CRITICAL_THRESHOLD = -28.0;
         const MONTHS_HISTORY = 8;
+        const MONTHS_FUTURE = 3; // الأشهر المستقبلية لتحديد العطل الحقيقي
         const NUMBER_OF_SUBSCRIBERS = 200;
 
         // مولد أرقام عشوائية مزروع (mulberry32)
@@ -87,7 +88,7 @@
             }
         }
 
-        // توليد بيانات واقعية مع بذرة
+        // توليد بيانات واقعية مع تعريف مستقبلي للعطل
         function generateSubscribers(rand) {
             const subscribers = [];
             const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.20);
@@ -112,13 +113,29 @@
                     history.push(current + noise);
                     current -= degradationRate;
                 }
-                const actualRx = current;
-                const actualFailure = actualRx <= CRITICAL_THRESHOLD || history.some(h => h <= CRITICAL_THRESHOLD);
+                // القيمة الحالية بعد آخر شهر
+                const lastActualRx = current;
+
+                // محاكاة الأشهر المستقبلية (3 أشهر) لتحديد العطل الحقيقي
+                let futureFailure = false;
+                for (let f = 0; f < MONTHS_FUTURE; f++) {
+                    current -= degradationRate;
+                    // نضيف ضوضاء صغيرة لتقريب الواقع
+                    const futureNoise = (rand() - 0.5) * 0.3;
+                    const futureRx = current + futureNoise;
+                    if (futureRx <= CRITICAL_THRESHOLD) {
+                        futureFailure = true;
+                        break;
+                    }
+                }
+
+                // العطل الحقيقي: إذا تجاوز الحد خلال الأشهر القادمة
+                const actualFailure = futureFailure;
 
                 subscribers.push({
                     id: i,
                     history: history,
-                    actualRx: actualRx,
+                    actualRx: lastActualRx,
                     actualFailure: actualFailure,
                     degradationRate: degradationRate
                 });
@@ -126,7 +143,7 @@
             return subscribers;
         }
 
-        // تنعيم البيانات
+        // تنعيم البيانات باستخدام المتوسط المتحرك البسيط
         function smoothSeries(data, windowSize = 3) {
             const smoothed = [];
             for (let i = 0; i < data.length; i++) {
@@ -162,14 +179,12 @@
             }
 
             // مؤشر الخطورة من 0 إلى 100
-            let riskScore = 0;
             const lastRx = subscriber.history[subscriber.history.length-1];
             const distanceToCritical = Math.max(0, CRITICAL_THRESHOLD - lastRx);
-            // كلما زاد معدل التدهور واقتربنا من الحد الحرج، زادت الخطورة
-            riskScore = Math.min(100, Math.abs(slope) * 80 + distanceToCritical * 5);
+            const riskScore = Math.min(100, Math.abs(slope) * 80 + distanceToCritical * 5);
 
-            // تحسين معيار الخطر: نعتبره خطرًا إذا كان معدل التدهور > 0.5 أو متوقع خلال 3 أشهر
-            const warning = (Math.abs(slope) > 0.5) || (monthsToCritical <= 3 && monthsToCritical >= 0);
+            // معيار الخطر: نعتبره خطرًا إذا كان معدل التدهور > 0.4 أو متوقع خلال 3 أشهر
+            const warning = (Math.abs(slope) > 0.4) || (monthsToCritical <= 3 && monthsToCritical >= 0);
 
             return {
                 slope: slope,
@@ -218,7 +233,7 @@
             document.getElementById('summary').innerHTML = `
                 <strong>نتيجة المحاكاة:</strong> 
                 من بين ${subscribers.length} مشترك، تنبأ النظام بـ ${metrics.tp + metrics.fp} حالة خطر.
-                القيمة الفعلية كانت ${metrics.tp + metrics.fn} عطل حقيقي.
+                القيمة الفعلية كانت ${metrics.tp + metrics.fn} عطل حقيقي (خلال 3 أشهر قادمة).
                 عدد الإنذارات الصحيحة: ${metrics.tp}، عدد الإنذارات الكاذبة: ${metrics.fp}.
                 <br>البذرة المستخدمة: <strong>${seedValue}</strong>.
             `;
@@ -252,27 +267,21 @@
             document.getElementById('compareResults').style.display = 'none';
         }
 
-        // مقارنة بين بذرتين مختلفتين
+        // مقارنة بين بذرتين
         function compareTwoSeeds() {
             const seed1 = parseInt(document.getElementById('seedInput').value, 10) || 42;
-            const seed2 = seed1 + 100; // بذرة مختلفة
-
+            const seed2 = seed1 + 100;
             const results = [seed1, seed2].map(seed => {
                 const rand = mulberry32(seed);
                 const subscribers = generateSubscribers(rand);
                 const predictions = subscribers.map(sub => predictFailure(sub));
                 const metrics = computeMetrics(subscribers, predictions);
-                return {
-                    seed,
-                    subscribers,
-                    predictions,
-                    metrics
-                };
+                return { seed, subscribers, predictions, metrics };
             });
 
             const box = document.getElementById('compareBox');
             box.innerHTML = '';
-            results.forEach((result, idx) => {
+            results.forEach((result) => {
                 const m = result.metrics;
                 const card = document.createElement('div');
                 card.style.border = '1px solid #ccc';
