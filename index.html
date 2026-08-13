@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #1e3a8a;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            padding: 20px;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #1e3a8a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 8px;
+            text-align: center;
+            font-size: 14px;
+        }
+        th {
+            background-color: #1e3a8a;
+            color: white;
+        }
+        .alert {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            padding: 8px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .safe {
+            background-color: #dcfce7;
+            color: #166534;
+            padding: 8px;
+            border-radius: 6px;
+        }
+        .info {
+            font-size: 14px;
+            color: #64748b;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧠 AT-FiberPredict</h1>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON</p>
+
+    <div class="card">
+        <h2>🔬 محاكاة بيانات المشتركين</h2>
+        <p>يولّد النظام 100 مشترك وهمي مع قياسات قدرة الاستقبال (Rx) لآخر 4 أشهر، ويحاول التنبؤ بمن سيتجاوز الحد الحرج (-28 dBm) خلال الفترة القادمة.</p>
+        <button onclick="runPrediction()">▶️ تشغيل المحاكاة والتنبؤ</button>
+    </div>
+
+    <div id="results" class="card" style="display:none;">
+        <h2>📊 نتائج التحليل</h2>
+        <p id="summary" class="info"></p>
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>المشترك</th>
+                    <th>آخر Rx (dBm)</th>
+                    <th>معدل التدهور (dB/شهر)</th>
+                    <th>متوقع الوصول للحد الحرج</th>
+                    <th>الحالة</th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // ==============================================
+        // AT-FiberPredict - نموذج أولي للتنبؤ الوقائي
+        // ==============================================
+
+        // إعدادات عامة
+        const CRITICAL_THRESHOLD = -28.0; // عتبة الحساسية الدنيا
+        const MONTHS_HISTORY = 4; // عدد الأشهر المتوفرة
+        const NUMBER_OF_SUBSCRIBERS = 100; // عدد المشتركين
+
+        // توليد بيانات وهمية واقعية
+        function generateSubscribers() {
+            const subscribers = [];
+            for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
+                // البداية بين -18 و -24 dBm
+                let rx = -18 - Math.random() * 6;
+                // معدل تدهور شهري عشوائي بين 0 و 1.2 dB
+                const degradationRate = Math.random() * 1.2;
+                const history = [];
+                // توليد تاريخ القياسات
+                for (let m = 0; m < MONTHS_HISTORY; m++) {
+                    history.push(rx);
+                    rx -= degradationRate; // تدهور تدريجي
+                }
+                subscribers.push({
+                    id: i,
+                    history: history, // من الأقدم إلى الأحدث
+                    currentRx: history[history.length - 1],
+                    degradationRate: degradationRate
+                });
+            }
+            return subscribers;
+        }
+
+        // خوارزمية التنبؤ: حساب الاتجاه والتوقع
+        function predictFailure(subscriber) {
+            const hist = subscriber.history;
+            const n = hist.length;
+            if (n < 2) return null;
+
+            // ببساطة: نحسب الفرق بين آخر وأول قياس
+            const first = hist[0];
+            const last = hist[n - 1];
+            const avgDrop = (first - last) / (n - 1); // dB/شهر
+
+            if (avgDrop <= 0) {
+                return {
+                    predictedMonths: Infinity,
+                    warning: false
+                };
+            }
+
+            const monthsToCritical = (last - CRITICAL_THRESHOLD) / avgDrop;
+
+            return {
+                predictedMonths: monthsToCritical,
+                warning: monthsToCritical < 2 // أقل من شهرين يعتبر قريب
+            };
+        }
+
+        // تشغيل المحاكاة وعرض النتائج
+        function runPrediction() {
+            const subscribers = generateSubscribers();
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = '';
+            let warnings = 0;
+
+            subscribers.forEach(sub => {
+                const pred = predictFailure(sub);
+                const status = (pred && pred.warning) ? 'خطر' : 'آمن';
+                const rowClass = (pred && pred.warning) ? 'alert' : 'safe';
+                const predictedText = (pred && pred.predictedMonths !== Infinity) 
+                    ? (pred.predictedMonths > 12 ? 'أكثر من سنة' : pred.predictedMonths.toFixed(1) + ' شهر') 
+                    : 'مستقر';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>مشترك ${sub.id}</td>
+                    <td>${sub.currentRx.toFixed(2)}</td>
+                    <td>${sub.degradationRate.toFixed(3)}</td>
+                    <td>${predictedText}</td>
+                    <td class="${rowClass}">${status}</td>
+                `;
+                tbody.appendChild(tr);
+
+                if (pred && pred.warning) warnings++;
+            });
+
+            const summary = document.getElementById('summary');
+            summary.innerHTML = `عدد المشتركين المتوقع عطلهم خلال شهرين: <strong>${warnings}</strong> من أصل ${NUMBER_OF_SUBSCRIBERS}`;
+
+            document.getElementById('results').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
