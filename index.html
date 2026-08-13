@@ -3,21 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v2</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, sans-serif;
             background-color: #f1f5f9;
             color: #1e293b;
             padding: 20px;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
         }
-        h1 {
-            color: #1e3a8a;
-            text-align: center;
-            margin-bottom: 10px;
-        }
+        h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
         .card {
             background: white;
             border-radius: 12px;
@@ -47,149 +44,265 @@
             text-align: center;
             font-size: 14px;
         }
-        th {
-            background-color: #1e3a8a;
-            color: white;
-        }
-        .alert {
-            background-color: #fee2e2;
-            color: #b91c1c;
-            padding: 8px;
-            border-radius: 6px;
-            font-weight: bold;
-        }
-        .safe {
-            background-color: #dcfce7;
-            color: #166534;
-            padding: 8px;
-            border-radius: 6px;
-        }
-        .info {
-            font-size: 14px;
-            color: #64748b;
-            text-align: center;
-        }
+        th { background-color: #1e3a8a; color: white; }
+        .alert { background-color: #fee2e2; color: #b91c1c; padding: 8px; border-radius: 6px; font-weight: bold; }
+        .safe { background-color: #dcfce7; color: #166534; padding: 8px; border-radius: 6px; }
+        .info { font-size: 14px; color: #64748b; text-align: center; }
+        .metrics { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
+        .metric { background: #f8fafc; border-radius: 8px; padding: 10px 15px; text-align: center; min-width: 100px; }
+        .metric span { display: block; font-size: 20px; font-weight: bold; color: #1e3a8a; }
+        canvas { margin-top: 20px; }
     </style>
 </head>
 <body>
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار التجريبي 2</p>
 
     <div class="card">
-        <h2>🔬 محاكاة بيانات المشتركين</h2>
-        <p>يولّد النظام 100 مشترك وهمي مع قياسات قدرة الاستقبال (Rx) لآخر 4 أشهر، ويحاول التنبؤ بمن سيتجاوز الحد الحرج (-28 dBm) خلال الفترة القادمة.</p>
+        <h2>🔬 محاكاة واقعية لـ 200 مشترك</h2>
+        <p>يولد النظام بيانات قياسات Rx لآخر 8 أشهر، مع معرفة مسبقة بالمشتركين الذين سيتعطلون فعليًا، ثم يطبق خوارزمية التنبؤ ويقيس دقتها.</p>
         <button onclick="runPrediction()">▶️ تشغيل المحاكاة والتنبؤ</button>
     </div>
 
     <div id="results" class="card" style="display:none;">
         <h2>📊 نتائج التحليل</h2>
-        <p id="summary" class="info"></p>
-        <table id="resultsTable">
+        <div class="metrics" id="metricsBox"></div>
+        <p id="summary" class="info" style="margin-top:15px;"></p>
+        
+        <h3>أخطر 5 مشتركين (الأعلى خطورة)</h3>
+        <table>
             <thead>
                 <tr>
                     <th>المشترك</th>
                     <th>آخر Rx (dBm)</th>
                     <th>معدل التدهور (dB/شهر)</th>
-                    <th>متوقع الوصول للحد الحرج</th>
+                    <th>الشهر المتوقع للعطل</th>
                     <th>الحالة</th>
                 </tr>
             </thead>
-            <tbody id="tbody"></tbody>
+            <tbody id="topRiskTbody"></tbody>
         </table>
+
+        <h3>📈 منحنيات تدهور الإشارة (أخطر 5 مشتركين)</h3>
+        <canvas id="signalChart" width="400" height="200"></canvas>
     </div>
 
     <script>
-        // ==============================================
-        // AT-FiberPredict - نموذج أولي للتنبؤ الوقائي
-        // ==============================================
+        // =====================================================
+        // AT-FiberPredict v2 - محاكاة وتنبؤ بمعايير الدقة
+        // =====================================================
 
-        // إعدادات عامة
         const CRITICAL_THRESHOLD = -28.0; // عتبة الحساسية الدنيا
-        const MONTHS_HISTORY = 4; // عدد الأشهر المتوفرة
-        const NUMBER_OF_SUBSCRIBERS = 100; // عدد المشتركين
+        const MONTHS_HISTORY = 8; // عدد أشهر القياسات
+        const NUMBER_OF_SUBSCRIBERS = 200; // عدد المشتركين
 
-        // توليد بيانات وهمية واقعية
+        // توليد بيانات واقعية مع معرفة الحقيقة الأرضية
         function generateSubscribers() {
             const subscribers = [];
+            // نحدد مسبقاً عدد المشتركين الذين سيفشلون فعلياً
+            const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.15); // 15% سيتعطلون
+            const failureIds = new Set();
+            while (failureIds.size < numFailures) {
+                failureIds.add(Math.floor(Math.random() * NUMBER_OF_SUBSCRIBERS) + 1);
+            }
+
             for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
-                // البداية بين -18 و -24 dBm
-                let rx = -18 - Math.random() * 6;
-                // معدل تدهور شهري عشوائي بين 0 و 1.2 dB
-                const degradationRate = Math.random() * 1.2;
-                const history = [];
-                // توليد تاريخ القياسات
-                for (let m = 0; m < MONTHS_HISTORY; m++) {
-                    history.push(rx);
-                    rx -= degradationRate; // تدهور تدريجي
+                // البداية بين -17 و -24 dBm
+                let rx = -17 - Math.random() * 7;
+                // معدل تدهور شهري: عشوائي منخفض (مستقر) أو مرتفع (معرض للخطر)
+                let degradationRate;
+                if (failureIds.has(i)) {
+                    // مشترك معرض للعطل: تدهور ملحوظ (0.5 إلى 1.2 dB/شهر)
+                    degradationRate = 0.5 + Math.random() * 0.7;
+                } else {
+                    // مشترك مستقر: تدهور بسيط (0 إلى 0.3 dB/شهر)
+                    degradationRate = Math.random() * 0.3;
                 }
+
+                const history = [];
+                let current = rx;
+                for (let m = 0; m < MONTHS_HISTORY; m++) {
+                    // إضافة ضوضاء قياس (بين -0.5 و +0.5 dB)
+                    const noise = (Math.random() - 0.5) * 0.5;
+                    history.push(current + noise);
+                    current -= degradationRate; // التدهور الشهري
+                }
+                // آخر قيمة (بدون ضوضاء مضافة) هي القيمة الحقيقية
+                const actualRx = current;
+                const actualFailure = actualRx <= CRITICAL_THRESHOLD || history.some(h => h <= CRITICAL_THRESHOLD);
+
                 subscribers.push({
                     id: i,
-                    history: history, // من الأقدم إلى الأحدث
-                    currentRx: history[history.length - 1],
+                    history: history,
+                    actualRx: actualRx,
+                    actualFailure: actualFailure,
                     degradationRate: degradationRate
                 });
             }
             return subscribers;
         }
 
-        // خوارزمية التنبؤ: حساب الاتجاه والتوقع
+        // خوارزمية التنبؤ: الانحدار الخطي لحساب الاتجاه
         function predictFailure(subscriber) {
-            const hist = subscriber.history;
-            const n = hist.length;
+            const y = subscriber.history;
+            const n = y.length;
             if (n < 2) return null;
 
-            // ببساطة: نحسب الفرق بين آخر وأول قياس
-            const first = hist[0];
-            const last = hist[n - 1];
-            const avgDrop = (first - last) / (n - 1); // dB/شهر
+            // حساب مؤشرات الانحدار الخطي
+            const x = Array.from({length: n}, (_, i) => i + 1);
+            const sumX = x.reduce((a,b) => a+b, 0);
+            const sumY = y.reduce((a,b) => a+b, 0);
+            const sumXY = x.reduce((a,b,i) => a + b*y[i], 0);
+            const sumX2 = x.reduce((a,b) => a + b*b, 0);
 
-            if (avgDrop <= 0) {
-                return {
-                    predictedMonths: Infinity,
-                    warning: false
-                };
+            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+
+            // توقع متى يصل إلى الحد الحرج (القيمة -28)
+            // نريد الشهر الذي فيه y <= -28
+            let monthsToCritical = Infinity;
+            if (slope < 0) {
+                // نبحث عن تقاطع مع -28
+                monthsToCritical = (CRITICAL_THRESHOLD - intercept) / slope;
+                // نحوله إلى رقم الشهر المستقبلي (من آخر شهر)
+                const lastMonth = n;
+                const predictedMonth = Math.ceil(monthsToCritical);
+                // الأفضل: عدد الأشهر من آخر قياس
+                monthsToCritical = monthsToCritical - lastMonth;
             }
 
-            const monthsToCritical = (last - CRITICAL_THRESHOLD) / avgDrop;
+            const warning = monthsToCritical <= 2 && monthsToCritical >= 0;
 
             return {
+                slope: slope,
                 predictedMonths: monthsToCritical,
-                warning: monthsToCritical < 2 // أقل من شهرين يعتبر قريب
+                warning: warning
             };
         }
 
-        // تشغيل المحاكاة وعرض النتائج
+        // حساب مقاييس الأداء
+        function computeMetrics(subscribers, predictions) {
+            let tp = 0, fp = 0, tn = 0, fn = 0;
+
+            subscribers.forEach((sub, index) => {
+                const pred = predictions[index];
+                const actual = sub.actualFailure;
+                const predictedPositive = pred && pred.warning;
+
+                if (actual && predictedPositive) tp++;
+                else if (!actual && predictedPositive) fp++;
+                else if (!actual && !predictedPositive) tn++;
+                else if (actual && !predictedPositive) fn++;
+            });
+
+            const precision = tp / (tp + fp) || 0;
+            const recall = tp / (tp + fn) || 0;
+            const f1 = 2 * (precision * recall) / (precision + recall) || 0;
+            const accuracy = (tp + tn) / (tp + tn + fp + fn);
+
+            return { tp, fp, tn, fn, precision, recall, f1, accuracy };
+        }
+
+        // عرض النتائج
         function runPrediction() {
             const subscribers = generateSubscribers();
-            const tbody = document.getElementById('tbody');
-            tbody.innerHTML = '';
-            let warnings = 0;
+            const predictions = subscribers.map(sub => predictFailure(sub));
 
-            subscribers.forEach(sub => {
-                const pred = predictFailure(sub);
-                const status = (pred && pred.warning) ? 'خطر' : 'آمن';
-                const rowClass = (pred && pred.warning) ? 'alert' : 'safe';
-                const predictedText = (pred && pred.predictedMonths !== Infinity) 
-                    ? (pred.predictedMonths > 12 ? 'أكثر من سنة' : pred.predictedMonths.toFixed(1) + ' شهر') 
-                    : 'مستقر';
+            // حساب المقاييس
+            const metrics = computeMetrics(subscribers, predictions);
 
+            // عرض المقاييس
+            const metricsBox = document.getElementById('metricsBox');
+            metricsBox.innerHTML = `
+                <div class="metric"><span>${subscribers.length}</span>مشترك</div>
+                <div class="metric"><span>${metrics.tp + metrics.fn}</span>أعطال حقيقية</div>
+                <div class="metric"><span>${(metrics.precision * 100).toFixed(1)}%</span>دقة (Precision)</div>
+                <div class="metric"><span>${(metrics.recall * 100).toFixed(1)}%</span>استدعاء (Recall)</div>
+                <div class="metric"><span>${(metrics.f1 * 100).toFixed(1)}%</span>F1-Score</div>
+                <div class="metric"><span>${(metrics.accuracy * 100).toFixed(1)}%</span>صحة عامة</div>
+            `;
+
+            // عرض الملخص
+            document.getElementById('summary').innerHTML = `
+                <strong>نتيجة المحاكاة:</strong> 
+                من بين ${subscribers.length} مشترك، تنبأ النظام بـ ${metrics.tp + metrics.fp} حالة خطر.
+                القيمة الفعلية كانت ${metrics.tp + metrics.fn} عطل حقيقي.
+                عدد الإنذارات الصحيحة: ${metrics.tp}، عدد الإنذارات الكاذبة: ${metrics.fp}.
+            `;
+
+            // ترتيب المشتركين حسب خطورة التنبؤ (المشتركين المتوقعين أولاً)
+            const sortedIndices = subscribers.map((_, i) => i)
+                .sort((a, b) => {
+                    const aWarn = predictions[a] && predictions[a].warning ? 1 : 0;
+                    const bWarn = predictions[b] && predictions[b].warning ? 1 : 0;
+                    if (aWarn !== bWarn) return bWarn - aWarn;
+                    // إذا كان كلاهما متوقعين، نرتب حسب معدل التدهور تنازلياً
+                    return (subscribers[b].degradationRate - subscribers[a].degradationRate);
+                });
+
+            // عرض أعلى 5 خطورة
+            const topRiskTbody = document.getElementById('topRiskTbody');
+            topRiskTbody.innerHTML = '';
+            const top5 = sortedIndices.slice(0, 5);
+            top5.forEach(i => {
+                const sub = subscribers[i];
+                const pred = predictions[i];
+                const predictedText = pred.predictedMonths > 12 ? 'أكثر من سنة' : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1) + ' شهر' : 'مستقر');
+                const status = sub.actualFailure ? '⚠️ سيتعطل فعلياً' : '✅ مستقر';
+                const rowClass = sub.actualFailure ? 'alert' : 'safe';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>مشترك ${sub.id}</td>
-                    <td>${sub.currentRx.toFixed(2)}</td>
+                    <td>${sub.history[sub.history.length-1].toFixed(2)}</td>
                     <td>${sub.degradationRate.toFixed(3)}</td>
                     <td>${predictedText}</td>
                     <td class="${rowClass}">${status}</td>
                 `;
-                tbody.appendChild(tr);
-
-                if (pred && pred.warning) warnings++;
+                topRiskTbody.appendChild(tr);
             });
 
-            const summary = document.getElementById('summary');
-            summary.innerHTML = `عدد المشتركين المتوقع عطلهم خلال شهرين: <strong>${warnings}</strong> من أصل ${NUMBER_OF_SUBSCRIBERS}`;
+            // رسم المنحنيات لأخطر 5 مشتركين
+            drawChart(subscribers, top5);
 
             document.getElementById('results').style.display = 'block';
+        }
+
+        // دالة رسم المنحنيات باستخدام Chart.js
+        function drawChart(subscribers, indices) {
+            const ctx = document.getElementById('signalChart').getContext('2d');
+            // إذا كان يوجد رسم قديم نقوم بتدميره
+            if (window.myChart) {
+                window.myChart.destroy();
+            }
+
+            const labels = Array.from({length: MONTHS_HISTORY}, (_, i) => 'شهر ' + (i+1));
+            const datasets = indices.map(i => ({
+                label: 'مشترك ' + subscribers[i].id,
+                data: subscribers[i].history.map(v => v.toFixed(2)),
+                borderColor: `hsl(${(i * 360 / indices.length) % 360}, 70%, 50%)`,
+                backgroundColor: 'transparent',
+                tension: 0.3,
+                borderWidth: 2
+            }));
+
+            window.myChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        title: { display: true, text: 'تدهور قدرة الاستقبال (Rx) عبر الأشهر' }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Rx Power (dBm)' },
+                            suggestedMin: -30,
+                            suggestedMax: -15
+                        }
+                    }
+                }
+            });
         }
     </script>
 </body>
