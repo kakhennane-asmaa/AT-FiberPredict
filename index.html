@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v4.1</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v4.2</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1100px; margin: 0 auto; }
         h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
@@ -22,26 +21,20 @@
         .metrics { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
         .metric { background: #f8fafc; border-radius: 8px; padding: 10px 15px; text-align: center; min-width: 110px; }
         .metric span { display: block; font-size: 20px; font-weight: bold; color: #1e3a8a; }
-        canvas { margin-top: 20px; }
+        canvas { margin-top: 20px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; }
         .seed-box { text-align: center; margin: 10px 0; }
         .compare-box { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
         .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 15px 0; }
         .stat-item { background: #f8fafc; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid #e2e8f0; }
         .stat-item .label { font-size: 12px; color: #64748b; }
         .stat-item .value { font-size: 22px; font-weight: bold; color: #1e3a8a; }
-        .legend { display: flex; justify-content: center; gap: 20px; margin: 10px 0; flex-wrap: wrap; }
-        .legend span { padding: 4px 10px; border-radius: 4px; font-size: 13px; }
-        .legend .stable { background: #dcfce7; color: #166534; }
-        .legend .watch { background: #fef3c7; color: #92400e; }
-        .legend .danger { background: #fed7aa; color: #c2410c; }
-        .legend .critical { background: #fee2e2; color: #b91c1c; }
         .download-btn { background-color: #16a34a; }
         .download-btn:hover { background-color: #15803d; }
     </style>
 </head>
 <body>
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 4.1</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 4.2 (رسوم مدمجة)</p>
 
     <div class="card">
         <h2>🔬 محاكاة واقعية لـ 200 مشترك</h2>
@@ -80,10 +73,10 @@
         </table>
 
         <h3>📈 منحنيات تدهور الإشارة (أخطر 5 مشتركين)</h3>
-        <canvas id="signalChart" width="400" height="200"></canvas>
+        <canvas id="signalChart" width="700" height="300"></canvas>
 
         <h3>📉 منحنى ROC</h3>
-        <canvas id="rocChart" width="400" height="200"></canvas>
+        <canvas id="rocChart" width="500" height="300"></canvas>
     </div>
 
     <div id="compareResults" class="card" style="display:none;">
@@ -270,7 +263,6 @@
                 const metrics = computeMetrics(subscribers, predictions, categories);
                 const roc = computeROC(subscribers, predictions);
 
-                // تخزين النتائج للتصدير قبل أي رسم بياني
                 window.lastResults = { subscribers, predictions, categories, metrics, roc };
 
                 document.getElementById('metricsBox').innerHTML = `
@@ -326,14 +318,9 @@
                     tbody.appendChild(tr);
                 });
 
-                // رسم المنحنيات (قد تفشل إذا كانت Chart.js غير متاحة)
-                try {
-                    drawSignalChart(subscribers, top5);
-                    drawROCChart(roc.points, roc.auc);
-                } catch (chartError) {
-                    console.warn('فشل رسم البياني:', chartError);
-                    // لا نوقف التنفيذ، النتائج ظاهرة
-                }
+                // رسم المنحنيات يدوياً (بدون مكتبة خارجية)
+                drawSignalChartManual(subscribers, top5);
+                drawROCChartManual(roc.points, roc.auc);
 
                 document.getElementById('results').style.display = 'block';
                 document.getElementById('compareResults').style.display = 'none';
@@ -344,59 +331,155 @@
             }
         }
 
-        function drawSignalChart(subscribers, indices) {
-            const ctx = document.getElementById('signalChart').getContext('2d');
-            if (window.signalChart) window.signalChart.destroy();
-            const labels = Array.from({length: MONTHS_HISTORY}, (_, i) => 'شهر ' + (i+1));
-            const datasets = indices.map(i => ({
-                label: 'مشترك ' + subscribers[i].id,
-                data: subscribers[i].history.map(v => v.toFixed(2)),
-                borderColor: `hsl(${(i * 360 / indices.length) % 360}, 70%, 50%)`,
-                backgroundColor: 'transparent',
-                tension: 0.3,
-                borderWidth: 2
-            }));
-            window.signalChart = new Chart(ctx, {
-                type: 'line',
-                data: { labels, datasets },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { position: 'bottom' } },
-                    scales: { y: { title: { display: true, text: 'Rx Power (dBm)' }, suggestedMin: -30, suggestedMax: -15 } }
+        // رسم منحنيات الإشارة يدوياً
+        function drawSignalChartManual(subscribers, indices) {
+            const canvas = document.getElementById('signalChart');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+
+            const padding = 50;
+            const chartW = W - padding * 2;
+            const chartH = H - padding * 2;
+
+            // محاور
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, H - padding);
+            ctx.lineTo(W - padding, H - padding);
+            ctx.stroke();
+
+            // عناوين المحاور
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Segoe UI, Tahoma';
+            ctx.textAlign = 'center';
+            ctx.fillText('الشهر', W/2, H - 10);
+            ctx.save();
+            ctx.translate(20, H/2);
+            ctx.rotate(-Math.PI/2);
+            ctx.fillText('Rx Power (dBm)', 0, 0);
+            ctx.restore();
+
+            // تحديد القيم القصوى والدنيا
+            const allValues = indices.flatMap(i => subscribers[i].history);
+            const maxVal = Math.max(...allValues) + 1;
+            const minVal = Math.min(...allValues) - 1;
+
+            // رسم المنحنيات
+            const colors = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#7c3aed'];
+            indices.forEach((idx, k) => {
+                const sub = subscribers[idx];
+                const color = colors[k % colors.length];
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let m = 0; m < sub.history.length; m++) {
+                    const x = padding + (m / (MONTHS_HISTORY - 1)) * chartW;
+                    const y = padding + ((maxVal - sub.history[m]) / (maxVal - minVal)) * chartH;
+                    if (m === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
                 }
+                ctx.stroke();
+
+                // نقاط
+                ctx.fillStyle = color;
+                for (let m = 0; m < sub.history.length; m++) {
+                    const x = padding + (m / (MONTHS_HISTORY - 1)) * chartW;
+                    const y = padding + ((maxVal - sub.history[m]) / (maxVal - minVal)) * chartH;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // رسم خط الحد الحرج
+            const yCrit = padding + ((maxVal - CRITICAL_THRESHOLD) / (maxVal - minVal)) * chartH;
+            ctx.strokeStyle = '#b91c1c';
+            ctx.setLineDash([6, 4]);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(padding, yCrit);
+            ctx.lineTo(W - padding, yCrit);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#b91c1c';
+            ctx.font = '12px Segoe UI, Tahoma';
+            ctx.textAlign = 'left';
+            ctx.fillText('الحد الحرج -28 dBm', W - padding - 120, yCrit - 5);
+
+            // أسطورة
+            ctx.textAlign = 'left';
+            let legendY = padding;
+            indices.forEach((idx, k) => {
+                const color = colors[k % colors.length];
+                ctx.fillStyle = color;
+                ctx.fillRect(padding, legendY, 15, 15);
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Segoe UI, Tahoma';
+                ctx.fillText('مشترك ' + subscribers[idx].id, padding + 20, legendY + 12);
+                legendY += 20;
             });
         }
 
-        function drawROCChart(points, auc) {
-            const ctx = document.getElementById('rocChart').getContext('2d');
-            if (window.rocChart) window.rocChart.destroy();
-            // تحويل النقاط إلى تنسيق مناسب لمخطط scatter
-            const scatterData = points.map(p => ({x: p[0], y: p[1]}));
-            window.rocChart = new Chart(ctx, {
-                type: 'scatter', // استخدام scatter بدلاً من line
-                data: {
-                    datasets: [{
-                        label: 'ROC Curve',
-                        data: scatterData,
-                        borderColor: '#1e3a8a',
-                        backgroundColor: 'rgba(30,58,138,0.2)',
-                        pointRadius: 0,
-                        showLine: true, // رسم خط بين النقاط
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { display: true },
-                        title: { display: true, text: `منحنى ROC (AUC = ${auc.toFixed(2)})` }
-                    },
-                    scales: {
-                        x: { title: { display: true, text: 'False Positive Rate (FPR)' }, min: 0, max: 1 },
-                        y: { title: { display: true, text: 'True Positive Rate (TPR)' }, min: 0, max: 1 }
-                    }
-                }
+        // رسم منحنى ROC يدوياً
+        function drawROCChartManual(points, auc) {
+            const canvas = document.getElementById('rocChart');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+
+            const padding = 50;
+            const chartW = W - padding * 2;
+            const chartH = H - padding * 2;
+
+            // محاور
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, H - padding);
+            ctx.lineTo(W - padding, H - padding);
+            ctx.stroke();
+
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Segoe UI, Tahoma';
+            ctx.textAlign = 'center';
+            ctx.fillText('False Positive Rate', W/2, H - 10);
+            ctx.save();
+            ctx.translate(20, H/2);
+            ctx.rotate(-Math.PI/2);
+            ctx.fillText('True Positive Rate', 0, 0);
+            ctx.restore();
+
+            // خط قطري
+            ctx.strokeStyle = '#d1d5db';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(padding, H - padding);
+            ctx.lineTo(W - padding, padding);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // رسم منحنى ROC
+            ctx.strokeStyle = '#1e3a8a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            points.forEach((p, i) => {
+                const x = padding + p[0] * chartW;
+                const y = padding + (1 - p[1]) * chartH;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
             });
+            ctx.stroke();
+
+            ctx.fillStyle = '#1e3a8a';
+            ctx.font = 'bold 16px Segoe UI, Tahoma';
+            ctx.textAlign = 'center';
+            ctx.fillText('AUC = ' + auc.toFixed(3), W/2, 30);
         }
 
         function compareTwoSeeds() {
