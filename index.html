@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v4.0</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v4.1</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1100px; margin: 0 auto; }
@@ -41,7 +41,7 @@
 </head>
 <body>
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 4.0</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 4.1</p>
 
     <div class="card">
         <h2>🔬 محاكاة واقعية لـ 200 مشترك</h2>
@@ -92,16 +92,11 @@
     </div>
 
     <script>
-        // =====================================================
-        // AT-FiberPredict v4.0 - محاكاة وتنبؤ مع ROC/AUC
-        // =====================================================
-
         const CRITICAL_THRESHOLD = -28.0;
         const MONTHS_HISTORY = 8;
         const MONTHS_FUTURE = 3;
         const NUMBER_OF_SUBSCRIBERS = 200;
 
-        // مولد أرقام عشوائية مزروع (mulberry32)
         function mulberry32(seed) {
             let a = seed >>> 0;
             return function() {
@@ -112,7 +107,6 @@
             }
         }
 
-        // توليد بيانات واقعية مع تعريف مستقبلي للعطل
         function generateSubscribers(rand) {
             const subscribers = [];
             const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.20);
@@ -132,19 +126,16 @@
 
                 const history = [];
                 let current = rx;
-                // عامل موسمي بسيط: تذبذب شهري صغير لتحاكي الظروف الجوية
                 const seasonalPattern = [0.05, -0.03, 0.02, -0.05, 0.04, -0.02, 0.03, -0.04];
 
                 for (let m = 0; m < MONTHS_HISTORY; m++) {
-                    const noise = (rand() - 0.5) * 0.5; // ضوضاء قياس
-                    const seasonal = seasonalPattern[m]; // تأثير موسمي
+                    const noise = (rand() - 0.5) * 0.5;
+                    const seasonal = seasonalPattern[m];
                     history.push(current + noise + seasonal);
                     current -= degradationRate;
                 }
-                // القيمة الحالية بعد آخر شهر
                 const lastActualRx = current;
 
-                // محاكاة الأشهر المستقبلية (3 أشهر) لتحديد العطل الحقيقي
                 let futureFailure = false;
                 for (let f = 0; f < MONTHS_FUTURE; f++) {
                     current -= degradationRate;
@@ -170,7 +161,6 @@
             return subscribers;
         }
 
-        // تنعيم البيانات باستخدام المتوسط المتحرك البسيط
         function smoothSeries(data, windowSize = 3) {
             const smoothed = [];
             for (let i = 0; i < data.length; i++) {
@@ -182,7 +172,6 @@
             return smoothed;
         }
 
-        // الانحدار الخطي على البيانات المنعّمة
         function linearRegression(y) {
             const n = y.length;
             const x = Array.from({length: n}, (_, i) => i + 1);
@@ -195,7 +184,6 @@
             return { slope, intercept };
         }
 
-        // دالة التنبؤ: تحسب معدل التدهور وتاريخ الوصول للحد الحرج ومؤشر الخطورة
         function predictFailure(subscriber) {
             const smoothed = smoothSeries(subscriber.history, 3);
             const { slope, intercept } = linearRegression(smoothed);
@@ -207,18 +195,16 @@
 
             const lastRx = subscriber.history[subscriber.history.length-1];
             const distanceToCritical = Math.max(0, CRITICAL_THRESHOLD - lastRx);
-            // مؤشر الخطورة من 0 إلى 100
             const riskScore = Math.min(100, Math.abs(slope) * 80 + distanceToCritical * 5);
 
             return {
                 slope: slope,
                 predictedMonths: monthsToCritical,
                 riskScore: riskScore,
-                warning: false // سيتم تحديده لاحقاً بواسطة التصنيف
+                warning: false
             };
         }
 
-        // تصنيف رباعي للمخاطر
         function classifyRisk(pred) {
             const score = pred.riskScore;
             if (score >= 80 || (pred.predictedMonths !== Infinity && pred.predictedMonths <= 2)) {
@@ -232,12 +218,10 @@
             }
         }
 
-        // تحديد ما إذا كان التنبؤ يعتبر إيجابياً (خطر أو حرج)
         function isPositiveRisk(category) {
             return category === 'خطر' || category === 'حرج';
         }
 
-        // مقاييس الأداء مع التصنيف الإيجابي (خطر/حرج)
         function computeMetrics(subscribers, predictions, categories) {
             let tp = 0, fp = 0, tn = 0, fn = 0;
             subscribers.forEach((sub, index) => {
@@ -255,21 +239,18 @@
             return { tp, fp, tn, fn, precision, recall, f1, accuracy };
         }
 
-        // حساب ROC وAUC باستخدام مؤشر الخطورة
         function computeROC(subscribers, predictions) {
-            // نرتب المشتركين حسب مؤشر الخطورة تنازلياً
             const sortedIndices = subscribers.map((_, i) => i).sort((a,b) => predictions[b].riskScore - predictions[a].riskScore);
             let tp = 0, fp = 0;
             const totalPos = subscribers.filter(s => s.actualFailure).length;
             const totalNeg = subscribers.length - totalPos;
-            const points = []; // [[FPR, TPR], ...]
+            const points = [];
             points.push([0,0]);
             for (const idx of sortedIndices) {
                 if (subscribers[idx].actualFailure) tp++;
                 else fp++;
                 points.push([fp / totalNeg, tp / totalPos]);
             }
-            // حساب AUC باستخدام طريقة شبه المنحرف
             let auc = 0;
             for (let i = 1; i < points.length; i++) {
                 const x1 = points[i-1][0], y1 = points[i-1][1];
@@ -279,94 +260,90 @@
             return { points, auc };
         }
 
-        // عرض النتائج
         function runPrediction() {
-            const seedValue = parseInt(document.getElementById('seedInput').value, 10) || 42;
-            const rand = mulberry32(seedValue);
-            const subscribers = generateSubscribers(rand);
-            const predictions = subscribers.map(sub => predictFailure(sub));
-            const categories = predictions.map(p => classifyRisk(p));
-            const metrics = computeMetrics(subscribers, predictions, categories);
-            const roc = computeROC(subscribers, predictions);
+            try {
+                const seedValue = parseInt(document.getElementById('seedInput').value, 10) || 42;
+                const rand = mulberry32(seedValue);
+                const subscribers = generateSubscribers(rand);
+                const predictions = subscribers.map(sub => predictFailure(sub));
+                const categories = predictions.map(p => classifyRisk(p));
+                const metrics = computeMetrics(subscribers, predictions, categories);
+                const roc = computeROC(subscribers, predictions);
 
-            // عرض المقاييس
-            document.getElementById('metricsBox').innerHTML = `
-                <div class="metric"><span>${subscribers.length}</span>مشترك</div>
-                <div class="metric"><span>${metrics.tp + metrics.fn}</span>أعطال حقيقية</div>
-                <div class="metric"><span>${(metrics.precision * 100).toFixed(1)}%</span>دقة (Precision)</div>
-                <div class="metric"><span>${(metrics.recall * 100).toFixed(1)}%</span>استدعاء (Recall)</div>
-                <div class="metric"><span>${(metrics.f1 * 100).toFixed(1)}%</span>F1-Score</div>
-                <div class="metric"><span>${(metrics.accuracy * 100).toFixed(1)}%</span>صحة عامة</div>
-                <div class="metric"><span>${(roc.auc * 100).toFixed(1)}%</span>AUC</div>
-            `;
+                // تخزين النتائج للتصدير قبل أي رسم بياني
+                window.lastResults = { subscribers, predictions, categories, metrics, roc };
 
-            document.getElementById('summary').innerHTML = `
-                <strong>نتيجة المحاكاة:</strong> 
-                من بين ${subscribers.length} مشترك، تم تصنيف ${metrics.tp + metrics.fp} كحالات خطر/حرج.
-                القيمة الفعلية كانت ${metrics.tp + metrics.fn} عطل حقيقي (خلال 3 أشهر قادمة).
-                عدد الإنذارات الصحيحة: ${metrics.tp}، عدد الإنذارات الكاذبة: ${metrics.fp}.
-                <br>البذرة المستخدمة: <strong>${seedValue}</strong>.
-            `;
-
-            // عرض إحصائيات التصنيفات
-            const catCounts = {
-                'مستقر': 0,
-                'مراقبة': 0,
-                'خطر': 0,
-                'حرج': 0
-            };
-            categories.forEach(c => catCounts[c]++);
-            document.getElementById('categoryStats').innerHTML = `
-                <div class="stat-item"><div class="label">مستقر</div><div class="value">${catCounts['مستقر']}</div></div>
-                <div class="stat-item"><div class="label">مراقبة</div><div class="value">${catCounts['مراقبة']}</div></div>
-                <div class="stat-item"><div class="label">خطر</div><div class="value">${catCounts['خطر']}</div></div>
-                <div class="stat-item"><div class="label">حرج</div><div class="value">${catCounts['حرج']}</div></div>
-            `;
-
-            // ترتيب المشتركين حسب مؤشر الخطورة
-            const sortedIndices = subscribers.map((_, i) => i)
-                .sort((a, b) => predictions[b].riskScore - predictions[a].riskScore);
-
-            // عرض أعلى 5 خطورة
-            const top5 = sortedIndices.slice(0, 5);
-            const tbody = document.getElementById('topRiskTbody');
-            tbody.innerHTML = '';
-            top5.forEach(i => {
-                const sub = subscribers[i];
-                const pred = predictions[i];
-                const cat = categories[i];
-                const predictedText = pred.predictedMonths > 12 ? 'أكثر من سنة' : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1) + ' شهر' : 'مستقر');
-                const actualStatus = sub.actualFailure ? '⚠️ سيتعطل فعلياً' : '✅ مستقر';
-                const rowClass = sub.actualFailure ? 'alert' : (isPositiveRisk(cat) ? 'warn' : 'safe');
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>مشترك ${sub.id}</td>
-                    <td>${sub.history[sub.history.length-1].toFixed(2)}</td>
-                    <td>${sub.degradationRate.toFixed(3)}</td>
-                    <td>${predictedText}</td>
-                    <td>${pred.riskScore.toFixed(1)}</td>
-                    <td>${cat}</td>
-                    <td class="${rowClass}">${actualStatus}</td>
+                document.getElementById('metricsBox').innerHTML = `
+                    <div class="metric"><span>${subscribers.length}</span>مشترك</div>
+                    <div class="metric"><span>${metrics.tp + metrics.fn}</span>أعطال حقيقية</div>
+                    <div class="metric"><span>${(metrics.precision * 100).toFixed(1)}%</span>دقة (Precision)</div>
+                    <div class="metric"><span>${(metrics.recall * 100).toFixed(1)}%</span>استدعاء (Recall)</div>
+                    <div class="metric"><span>${(metrics.f1 * 100).toFixed(1)}%</span>F1-Score</div>
+                    <div class="metric"><span>${(metrics.accuracy * 100).toFixed(1)}%</span>صحة عامة</div>
+                    <div class="metric"><span>${(roc.auc * 100).toFixed(1)}%</span>AUC</div>
                 `;
-                tbody.appendChild(tr);
-            });
 
-            // رسم منحنيات التدهور
-            drawSignalChart(subscribers, top5);
+                document.getElementById('summary').innerHTML = `
+                    <strong>نتيجة المحاكاة:</strong> 
+                    من بين ${subscribers.length} مشترك، تم تصنيف ${metrics.tp + metrics.fp} كحالات خطر/حرج.
+                    القيمة الفعلية كانت ${metrics.tp + metrics.fn} عطل حقيقي (خلال 3 أشهر قادمة).
+                    عدد الإنذارات الصحيحة: ${metrics.tp}، عدد الإنذارات الكاذبة: ${metrics.fp}.
+                    <br>البذرة المستخدمة: <strong>${seedValue}</strong>.
+                `;
 
-            // رسم منحنى ROC
-            drawROCChart(roc.points, roc.auc);
+                const catCounts = { 'مستقر': 0, 'مراقبة': 0, 'خطر': 0, 'حرج': 0 };
+                categories.forEach(c => catCounts[c]++);
+                document.getElementById('categoryStats').innerHTML = `
+                    <div class="stat-item"><div class="label">مستقر</div><div class="value">${catCounts['مستقر']}</div></div>
+                    <div class="stat-item"><div class="label">مراقبة</div><div class="value">${catCounts['مراقبة']}</div></div>
+                    <div class="stat-item"><div class="label">خطر</div><div class="value">${catCounts['خطر']}</div></div>
+                    <div class="stat-item"><div class="label">حرج</div><div class="value">${catCounts['حرج']}</div></div>
+                `;
 
-            document.getElementById('results').style.display = 'block';
-            document.getElementById('compareResults').style.display = 'none';
+                const sortedIndices = subscribers.map((_, i) => i)
+                    .sort((a, b) => predictions[b].riskScore - predictions[a].riskScore);
 
-            // حفظ آخر نتائج للتصدير
-            window.lastResults = {
-                subscribers, predictions, categories, metrics, roc
-            };
+                const top5 = sortedIndices.slice(0, 5);
+                const tbody = document.getElementById('topRiskTbody');
+                tbody.innerHTML = '';
+                top5.forEach(i => {
+                    const sub = subscribers[i];
+                    const pred = predictions[i];
+                    const cat = categories[i];
+                    const predictedText = pred.predictedMonths > 12 ? 'أكثر من سنة' : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1) + ' شهر' : 'مستقر');
+                    const actualStatus = sub.actualFailure ? '⚠️ سيتعطل فعلياً' : '✅ مستقر';
+                    const rowClass = sub.actualFailure ? 'alert' : (isPositiveRisk(cat) ? 'warn' : 'safe');
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>مشترك ${sub.id}</td>
+                        <td>${sub.history[sub.history.length-1].toFixed(2)}</td>
+                        <td>${sub.degradationRate.toFixed(3)}</td>
+                        <td>${predictedText}</td>
+                        <td>${pred.riskScore.toFixed(1)}</td>
+                        <td>${cat}</td>
+                        <td class="${rowClass}">${actualStatus}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // رسم المنحنيات (قد تفشل إذا كانت Chart.js غير متاحة)
+                try {
+                    drawSignalChart(subscribers, top5);
+                    drawROCChart(roc.points, roc.auc);
+                } catch (chartError) {
+                    console.warn('فشل رسم البياني:', chartError);
+                    // لا نوقف التنفيذ، النتائج ظاهرة
+                }
+
+                document.getElementById('results').style.display = 'block';
+                document.getElementById('compareResults').style.display = 'none';
+
+            } catch (error) {
+                console.error('خطأ في runPrediction:', error);
+                alert('حدث خطأ أثناء المعالجة. راجع وحدة التحكم.');
+            }
         }
 
-        // رسم منحنيات الإشارة
         function drawSignalChart(subscribers, indices) {
             const ctx = document.getElementById('signalChart').getContext('2d');
             if (window.signalChart) window.signalChart.destroy();
@@ -390,21 +367,21 @@
             });
         }
 
-        // رسم منحنى ROC
         function drawROCChart(points, auc) {
             const ctx = document.getElementById('rocChart').getContext('2d');
             if (window.rocChart) window.rocChart.destroy();
-            const dataPoints = points.map(p => ({x: p[0], y: p[1]}));
+            // تحويل النقاط إلى تنسيق مناسب لمخطط scatter
+            const scatterData = points.map(p => ({x: p[0], y: p[1]}));
             window.rocChart = new Chart(ctx, {
-                type: 'line',
+                type: 'scatter', // استخدام scatter بدلاً من line
                 data: {
                     datasets: [{
                         label: 'ROC Curve',
-                        data: dataPoints,
+                        data: scatterData,
                         borderColor: '#1e3a8a',
-                        backgroundColor: 'transparent',
-                        borderWidth: 2,
+                        backgroundColor: 'rgba(30,58,138,0.2)',
                         pointRadius: 0,
+                        showLine: true, // رسم خط بين النقاط
                         tension: 0.1
                     }]
                 },
@@ -422,48 +399,51 @@
             });
         }
 
-        // مقارنة بين بذرتين
         function compareTwoSeeds() {
-            const seed1 = parseInt(document.getElementById('seedInput').value, 10) || 42;
-            const seed2 = seed1 + 100;
-            const results = [seed1, seed2].map(seed => {
-                const rand = mulberry32(seed);
-                const subscribers = generateSubscribers(rand);
-                const predictions = subscribers.map(sub => predictFailure(sub));
-                const categories = predictions.map(p => classifyRisk(p));
-                const metrics = computeMetrics(subscribers, predictions, categories);
-                const roc = computeROC(subscribers, predictions);
-                return { seed, subscribers, predictions, categories, metrics, roc };
-            });
+            try {
+                const seed1 = parseInt(document.getElementById('seedInput').value, 10) || 42;
+                const seed2 = seed1 + 100;
+                const results = [seed1, seed2].map(seed => {
+                    const rand = mulberry32(seed);
+                    const subscribers = generateSubscribers(rand);
+                    const predictions = subscribers.map(sub => predictFailure(sub));
+                    const categories = predictions.map(p => classifyRisk(p));
+                    const metrics = computeMetrics(subscribers, predictions, categories);
+                    const roc = computeROC(subscribers, predictions);
+                    return { seed, subscribers, predictions, categories, metrics, roc };
+                });
 
-            const box = document.getElementById('compareBox');
-            box.innerHTML = '';
-            results.forEach((result) => {
-                const m = result.metrics;
-                const card = document.createElement('div');
-                card.style.border = '1px solid #ccc';
-                card.style.padding = '15px';
-                card.style.borderRadius = '8px';
-                card.style.flex = '1';
-                card.style.minWidth = '200px';
-                card.innerHTML = `
-                    <h3>بذرة ${result.seed}</h3>
-                    <p>أعطال حقيقية: ${m.tp + m.fn}</p>
-                    <p>إنذارات (خطر/حرج): ${m.tp + m.fp}</p>
-                    <p>صحيحة: ${m.tp} | كاذبة: ${m.fp}</p>
-                    <p>Precision: ${(m.precision*100).toFixed(1)}%</p>
-                    <p>Recall: ${(m.recall*100).toFixed(1)}%</p>
-                    <p>F1: ${(m.f1*100).toFixed(1)}%</p>
-                    <p>AUC: ${(result.roc.auc * 100).toFixed(1)}%</p>
-                `;
-                box.appendChild(card);
-            });
+                const box = document.getElementById('compareBox');
+                box.innerHTML = '';
+                results.forEach((result) => {
+                    const m = result.metrics;
+                    const card = document.createElement('div');
+                    card.style.border = '1px solid #ccc';
+                    card.style.padding = '15px';
+                    card.style.borderRadius = '8px';
+                    card.style.flex = '1';
+                    card.style.minWidth = '200px';
+                    card.innerHTML = `
+                        <h3>بذرة ${result.seed}</h3>
+                        <p>أعطال حقيقية: ${m.tp + m.fn}</p>
+                        <p>إنذارات (خطر/حرج): ${m.tp + m.fp}</p>
+                        <p>صحيحة: ${m.tp} | كاذبة: ${m.fp}</p>
+                        <p>Precision: ${(m.precision*100).toFixed(1)}%</p>
+                        <p>Recall: ${(m.recall*100).toFixed(1)}%</p>
+                        <p>F1: ${(m.f1*100).toFixed(1)}%</p>
+                        <p>AUC: ${(result.roc.auc * 100).toFixed(1)}%</p>
+                    `;
+                    box.appendChild(card);
+                });
 
-            document.getElementById('compareResults').style.display = 'block';
-            document.getElementById('results').style.display = 'none';
+                document.getElementById('compareResults').style.display = 'block';
+                document.getElementById('results').style.display = 'none';
+            } catch (error) {
+                console.error('خطأ في compareTwoSeeds:', error);
+                alert('حدث خطأ في المقارنة.');
+            }
         }
 
-        // تصدير CSV
         function exportCSV() {
             if (!window.lastResults) {
                 alert('يرجى تشغيل المحاكاة أولاً');
