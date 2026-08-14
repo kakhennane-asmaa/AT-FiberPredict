@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v5.1</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v6.0</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1200px; margin: 0 auto; }
         h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
@@ -32,6 +32,7 @@
         .download-btn { background-color: #16a34a; }
         .download-btn:hover { background-color: #15803d; }
         .print-header { display: none; }
+        .group-highlight { background-color: #fff3cd; }
         @media print {
             body { background: white; }
             .card { box-shadow: none; border: none; }
@@ -47,11 +48,11 @@
     </div>
 
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 5.1</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 6.0 (شبكة PON + كشف الشذوذ)</p>
 
     <div class="card no-print">
         <h2>🔬 محاكاة واقعية لـ 200 مشترك</h2>
-        <p>يولد النظام بيانات قياسات Rx لآخر 8 أشهر، ويحاكي 3 أشهر إضافية مستقبلية لتحديد من سيتعطل فعلاً خلالها، ثم يطبق خوارزمية تنبؤ محسّنة (انحدار خطي + تنعيم + مؤشر خطورة) ويقيس دقتها ومعايير ROC/AUC.</p>
+        <p>يولد النظام بيانات قياسات Rx لآخر 8 أشهر، ويحاكي 3 أشهر إضافية مستقبلية، مع نمذجة بنية شبكة PON (OLT → Splitter) وكشف الشذوذ الزمني، ثم يطبق خوارزمية تنبؤ محسّنة ويقيس دقتها ومعايير ROC/AUC.</p>
         <div class="seed-box">
             <label for="seedInput"><strong>بذرة المحاكاة (Seed):</strong></label>
             <input type="number" id="seedInput" value="42" min="1" max="9999">
@@ -70,11 +71,15 @@
         
         <div class="stat-grid" id="categoryStats"></div>
 
+        <h3>📍 توزيع المخاطر عبر مجموعات PON</h3>
+        <div id="ponSummary" class="info"></div>
+
         <h3>أخطر 5 مشتركين (الأعلى خطورة)</h3>
         <table>
             <thead>
                 <tr>
                     <th>المشترك</th>
+                    <th>المجموعة</th>
                     <th>آخر Rx (dBm)</th>
                     <th>معدل التدهور (dB/شهر)</th>
                     <th>الشهر المتوقع للعطل</th>
@@ -98,6 +103,7 @@
                 <thead>
                     <tr>
                         <th>المشترك</th>
+                        <th>المجموعة</th>
                         <th>آخر Rx (dBm)</th>
                         <th>معدل التدهور (dB/شهر)</th>
                         <th>نوع العطل المحتمل</th>
@@ -122,6 +128,7 @@
         const MONTHS_HISTORY = 8;
         const MONTHS_FUTURE = 3;
         const NUMBER_OF_SUBSCRIBERS = 200;
+        const NUMBER_OF_PON_GROUPS = 10; // مجموعات PON (10 مجموعات، كل مجموعة 20 مشترك)
 
         // أنواع الأعطال
         const FAULT_TYPES = {
@@ -142,7 +149,7 @@
             }
         }
 
-        // توليد بيانات واقعية مع أنواع أعطال مختلفة
+        // توليد بيانات واقعية مع طوبولوجيا PON وكشف الشذوذ
         function generateSubscribers(rand) {
             const subscribers = [];
             const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.20);
@@ -151,13 +158,28 @@
                 failureIds.add(Math.floor(rand() * NUMBER_OF_SUBSCRIBERS) + 1);
             }
 
+            // تحديد مجموعات PON ذات مشاكل على مستوى الـ Splitter
+            const ponGroupsWithSplitterIssue = new Set();
+            const numSplitterIssues = Math.floor(NUMBER_OF_PON_GROUPS * 0.2); // 20% من المجموعات لديها مشكلة
+            while (ponGroupsWithSplitterIssue.size < numSplitterIssues) {
+                ponGroupsWithSplitterIssue.add(Math.floor(rand() * NUMBER_OF_PON_GROUPS) + 1);
+            }
+
             for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
+                // توزيع المشتركين على مجموعات PON
+                const groupId = ((i - 1) % NUMBER_OF_PON_GROUPS) + 1;
+                // إذا كانت المجموعة لديها مشكلة في Splitter، نزيد احتمالية التدهور لجميع أفرادها
+                const groupHasIssue = ponGroupsWithSplitterIssue.has(groupId);
+                
                 let rx = -17 - rand() * 7;
                 let faultType;
                 let degradationRate;
                 let suddenDrop = false;
 
-                if (failureIds.has(i)) {
+                // هل هذا المشترك من ضمن قائمة الأعطال؟
+                if (failureIds.has(i) || (groupHasIssue && rand() < 0.3)) {
+                    // إذا كانت المجموعة لديها مشكلة Splitter، قد لا يكون المشترك بالضرورة في failureIds لكننا نضيفه
+                    // لأن الـ Splitter يؤثر على الجميع
                     const faultRand = rand();
                     if (faultRand < 0.3) {
                         faultType = FAULT_TYPES.CONTAMINATION;
@@ -165,7 +187,7 @@
                     } else if (faultRand < 0.55) {
                         faultType = FAULT_TYPES.MACROBEND;
                         degradationRate = 0.5 + rand() * 0.4;
-                        suddenDrop = rand() < 0.5; // ✅ تم التصحيح من Math.random() إلى rand()
+                        suddenDrop = rand() < 0.5;
                     } else if (faultRand < 0.75) {
                         faultType = FAULT_TYPES.BREAK;
                         degradationRate = 0.7 + rand() * 0.5;
@@ -232,6 +254,7 @@
 
                 subscribers.push({
                     id: i,
+                    groupId: groupId,
                     history: history,
                     actualRx: lastActualRx,
                     actualFailure: actualFailure,
@@ -265,6 +288,20 @@
             return { slope, intercept };
         }
 
+        // كشف الشذوذ الزمني
+        function detectTemporalAnomaly(history) {
+            // نحسب المتوسط والانحراف المعياري لآخر 3 نقاط
+            const lastThree = history.slice(-3);
+            if (lastThree.length < 3) return false;
+            const mean = lastThree.reduce((a,b) => a+b, 0) / lastThree.length;
+            const variance = lastThree.reduce((a,b) => a + (b-mean)**2, 0) / lastThree.length;
+            const std = Math.sqrt(variance);
+            const last = lastThree[lastThree.length - 1];
+            const prev = lastThree[lastThree.length - 2];
+            // شذوذ إذا انخفضت القيمة أكثر من 1.5 انحراف معياري
+            return (prev - last) > 1.5 * std;
+        }
+
         function predictFailure(subscriber) {
             const smoothed = smoothSeries(subscriber.history, 3);
             const { slope, intercept } = linearRegression(smoothed);
@@ -276,20 +313,32 @@
 
             const lastRx = subscriber.history[subscriber.history.length-1];
             const distanceToCritical = Math.max(0, CRITICAL_THRESHOLD - lastRx);
-            const riskScore = Math.min(100, Math.abs(slope) * 80 + distanceToCritical * 5);
+            const anomaly = detectTemporalAnomaly(subscriber.history);
+
+            let riskScore = Math.min(100, Math.abs(slope) * 80 + distanceToCritical * 5);
+            // إذا كان هناك شذوذ، نرفع الخطورة
+            if (anomaly) {
+                riskScore = Math.min(100, riskScore + 20);
+            }
 
             return {
                 slope: slope,
                 predictedMonths: monthsToCritical,
                 riskScore: riskScore,
-                warning: false
+                warning: false,
+                anomaly: anomaly
             };
         }
 
         function classifyRisk(pred) {
             const score = pred.riskScore;
-            if (score >= 80 || (pred.predictedMonths !== Infinity && pred.predictedMonths <= 2)) {
-                return 'حرج';
+            // نستخدم warning كشرط أساسي
+            if (pred.warning || pred.anomaly) {
+                if (score >= 80 || (pred.predictedMonths !== Infinity && pred.predictedMonths <= 2)) {
+                    return 'حرج';
+                } else {
+                    return 'خطر';
+                }
             } else if (score >= 60 || (pred.predictedMonths !== Infinity && pred.predictedMonths <= 4)) {
                 return 'خطر';
             } else if (score >= 30) {
@@ -372,6 +421,7 @@
                     <br>البذرة المستخدمة: <strong>${seedValue}</strong>.
                 `;
 
+                // إحصائيات التصنيف
                 const catCounts = { 'مستقر': 0, 'مراقبة': 0, 'خطر': 0, 'حرج': 0 };
                 categories.forEach(c => catCounts[c]++);
                 document.getElementById('categoryStats').innerHTML = `
@@ -381,9 +431,23 @@
                     <div class="stat-item"><div class="label">حرج</div><div class="value">${catCounts['حرج']}</div></div>
                 `;
 
+                // ملخص مجموعات PON
+                const ponSummary = document.getElementById('ponSummary');
+                let groupStats = '';
+                for (let g = 1; g <= NUMBER_OF_PON_GROUPS; g++) {
+                    const groupSubs = subscribers.filter(s => s.groupId === g);
+                    const groupRisk = groupSubs.filter(s => isPositiveRisk(categories[subscribers.indexOf(s)]));
+                    if (groupRisk.length > 0) {
+                        groupStats += `مجموعة ${g}: ${groupRisk.length} مشتركين معرضين للخطر<br>`;
+                    }
+                }
+                ponSummary.innerHTML = groupStats || 'لا توجد مجموعات معرضة للخطر';
+
+                // ترتيب المشتركين حسب الخطورة
                 const sortedIndices = subscribers.map((_, i) => i)
                     .sort((a, b) => predictions[b].riskScore - predictions[a].riskScore);
 
+                // أعلى 5 خطورة
                 const top5 = sortedIndices.slice(0, 5);
                 const tbody = document.getElementById('topRiskTbody');
                 tbody.innerHTML = '';
@@ -397,6 +461,7 @@
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td>مشترك ${sub.id}</td>
+                        <td>مجموعة ${sub.groupId}</td>
                         <td>${sub.history[sub.history.length-1].toFixed(2)}</td>
                         <td>${sub.degradationRate.toFixed(3)}</td>
                         <td>${predictedText}</td>
@@ -420,6 +485,7 @@
                     let reason = '';
                     if (isPositiveRisk(cat)) {
                         reason = `معدل تدهور ${Math.abs(pred.slope).toFixed(3)} dB/شهر، متوقع العطل خلال ${predictedText}`;
+                        if (pred.anomaly) reason += ' (شذوذ زمني مكتشف)';
                         if (sub.faultType === FAULT_TYPES.MACROBEND) reason += ' (انحناء حاد)';
                         else if (sub.faultType === FAULT_TYPES.BREAK) reason += ' (كسر ليفي)';
                         else if (sub.faultType === FAULT_TYPES.CONTAMINATION) reason += ' (تلوث موصل)';
@@ -430,6 +496,7 @@
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td>مشترك ${sub.id}</td>
+                        <td>مجموعة ${sub.groupId}</td>
                         <td>${sub.history[sub.history.length-1].toFixed(2)}</td>
                         <td>${sub.degradationRate.toFixed(3)}</td>
                         <td>${sub.faultType}</td>
@@ -644,12 +711,13 @@
                 return;
             }
             const { subscribers, predictions, categories } = window.lastResults;
-            let csv = 'المشترك,آخر Rx (dBm),معدل التدهور (dB/شهر),نوع العطل المحتمل,مؤشر الخطورة,التصنيف,الحالة الفعلية\n';
+            let csv = 'المشترك,المجموعة,آخر Rx (dBm),معدل التدهور (dB/شهر),نوع العطل المحتمل,مؤشر الخطورة,التصنيف,الحالة الفعلية,شذوذ\n';
             subscribers.forEach((sub, i) => {
                 const pred = predictions[i];
                 const cat = categories[i];
                 const actual = sub.actualFailure ? 'عطل حقيقي' : 'مستقر';
-                csv += `${sub.id},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${cat},${actual}\n`;
+                const anomaly = pred.anomaly ? 'نعم' : 'لا';
+                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${cat},${actual},${anomaly}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
