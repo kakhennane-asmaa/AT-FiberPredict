@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v5.0</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v5.1</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1200px; margin: 0 auto; }
         h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
@@ -28,9 +28,9 @@
         .stat-item { background: #f8fafc; border-radius: 8px; padding: 10px; text-align: center; border: 1px solid #e2e8f0; }
         .stat-item .label { font-size: 12px; color: #64748b; }
         .stat-item .value { font-size: 22px; font-weight: bold; color: #1e3a8a; }
+        .table-container { max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
         .download-btn { background-color: #16a34a; }
         .download-btn:hover { background-color: #15803d; }
-        .table-container { max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
         .print-header { display: none; }
         @media print {
             body { background: white; }
@@ -47,7 +47,7 @@
     </div>
 
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 5.0</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 5.1</p>
 
     <div class="card no-print">
         <h2>🔬 محاكاة واقعية لـ 200 مشترك</h2>
@@ -158,15 +158,14 @@
                 let suddenDrop = false;
 
                 if (failureIds.has(i)) {
-                    // اختر نوع عطل عشوائي
                     const faultRand = rand();
                     if (faultRand < 0.3) {
                         faultType = FAULT_TYPES.CONTAMINATION;
-                        degradationRate = 0.2 + rand() * 0.3; // بطيء
+                        degradationRate = 0.2 + rand() * 0.3;
                     } else if (faultRand < 0.55) {
                         faultType = FAULT_TYPES.MACROBEND;
                         degradationRate = 0.5 + rand() * 0.4;
-                        suddenDrop = Math.random() < 0.5; // قد يحدث هبوط مفاجئ
+                        suddenDrop = rand() < 0.5; // ✅ تم التصحيح من Math.random() إلى rand()
                     } else if (faultRand < 0.75) {
                         faultType = FAULT_TYPES.BREAK;
                         degradationRate = 0.7 + rand() * 0.5;
@@ -174,11 +173,10 @@
                     } else {
                         faultType = FAULT_TYPES.SPLICE;
                         degradationRate = 0.3 + rand() * 0.4;
-                        // لحام رديء: تدهور متقطع (فترات استقرار ثم هبوط)
                     }
                 } else {
                     faultType = FAULT_TYPES.STABLE;
-                    degradationRate = rand() * 0.15; // شبه مستقر
+                    degradationRate = rand() * 0.15;
                 }
 
                 const history = [];
@@ -190,28 +188,23 @@
                     const seasonal = seasonalPattern[m];
                     history.push(current + noise + seasonal);
 
-                    // تطبيق نمط التدهور حسب النوع
                     if (faultType === FAULT_TYPES.SPLICE) {
-                        // لحام: ثبات لفترة ثم هبوط
                         if (m % 3 === 0 || m % 2 === 0) {
                             current -= degradationRate;
                         }
                     } else if (faultType === FAULT_TYPES.BREAK) {
-                        // كسر: تدهور ثابت مع هبوط حاد في الشهر الأخير
                         if (m === MONTHS_HISTORY - 1) {
-                            current -= 2.5; // هبوط حاد
+                            current -= 2.5;
                         } else {
                             current -= degradationRate;
                         }
                     } else if (faultType === FAULT_TYPES.MACROBEND) {
-                        // انحناء: تدهور مع هبوط مفاجئ في منتصف المدة
                         if (suddenDrop && m === 3) {
                             current -= 1.5;
                         } else {
                             current -= degradationRate;
                         }
                     } else {
-                        // تلوث: تدهور بطيء ثابت
                         current -= degradationRate;
                     }
                 }
@@ -379,7 +372,6 @@
                     <br>البذرة المستخدمة: <strong>${seedValue}</strong>.
                 `;
 
-                // إحصائيات التصنيف
                 const catCounts = { 'مستقر': 0, 'مراقبة': 0, 'خطر': 0, 'حرج': 0 };
                 categories.forEach(c => catCounts[c]++);
                 document.getElementById('categoryStats').innerHTML = `
@@ -389,11 +381,9 @@
                     <div class="stat-item"><div class="label">حرج</div><div class="value">${catCounts['حرج']}</div></div>
                 `;
 
-                // ترتيب المشتركين حسب الخطورة
                 const sortedIndices = subscribers.map((_, i) => i)
                     .sort((a, b) => predictions[b].riskScore - predictions[a].riskScore);
 
-                // أعلى 5 خطورة
                 const top5 = sortedIndices.slice(0, 5);
                 const tbody = document.getElementById('topRiskTbody');
                 tbody.innerHTML = '';
@@ -417,7 +407,7 @@
                     tbody.appendChild(tr);
                 });
 
-                // جميع المشتركين (مرتبون)
+                // جميع المشتركين
                 const allTbody = document.getElementById('allSubscribersTbody');
                 allTbody.innerHTML = '';
                 sortedIndices.forEach(i => {
@@ -427,7 +417,6 @@
                     const predictedText = pred.predictedMonths > 12 ? 'أكثر من سنة' : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1) + ' شهر' : 'مستقر');
                     const actualStatus = sub.actualFailure ? '⚠️ سيتعطل فعلياً' : '✅ مستقر';
                     const rowClass = sub.actualFailure ? 'alert' : (isPositiveRisk(cat) ? 'warn' : 'safe');
-                    // سبب الخطورة
                     let reason = '';
                     if (isPositiveRisk(cat)) {
                         reason = `معدل تدهور ${Math.abs(pred.slope).toFixed(3)} dB/شهر، متوقع العطل خلال ${predictedText}`;
@@ -452,7 +441,7 @@
                     allTbody.appendChild(tr);
                 });
 
-                // رسم المنحنيات يدوياً
+                // رسم المنحنيات
                 drawSignalChartManual(subscribers, top5);
                 drawROCChartManual(roc.points, roc.auc);
 
@@ -465,7 +454,6 @@
             }
         }
 
-        // رسم منحنيات الإشارة يدوياً
         function drawSignalChartManual(subscribers, indices) {
             const canvas = document.getElementById('signalChart');
             const ctx = canvas.getContext('2d');
@@ -551,7 +539,6 @@
             });
         }
 
-        // رسم منحنى ROC يدوياً
         function drawROCChartManual(points, auc) {
             const canvas = document.getElementById('rocChart');
             const ctx = canvas.getContext('2d');
