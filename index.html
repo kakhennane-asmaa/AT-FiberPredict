@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v7.0</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v7.1</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1200px; margin: 0 auto; }
         h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
@@ -19,6 +19,7 @@
         .alert { background-color: #fee2e2; color: #b91c1c; padding: 8px; border-radius: 6px; font-weight: bold; }
         .safe { background-color: #dcfce7; color: #166534; padding: 8px; border-radius: 6px; }
         .warn { background-color: #fef3c7; color: #92400e; padding: 8px; border-radius: 6px; font-weight: bold; }
+        .monitor { background-color: #dbeafe; color: #1e40af; padding: 8px; border-radius: 6px; font-weight: bold; }
         .info { font-size: 14px; color: #64748b; text-align: center; }
         .metrics { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
         .metric { background: #f8fafc; border-radius: 8px; padding: 10px 15px; text-align: center; min-width: 110px; }
@@ -50,7 +51,7 @@
     </div>
 
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 7.0 (مؤشر الثقة + تحليل البقاء)</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 7.1 (تصنيف رباعي محسّن + تحليل بقاء دقيق)</p>
 
     <div class="card no-print">
         <h2>🔬 مصدر البيانات</h2>
@@ -167,6 +168,7 @@
                 failureIds.add(Math.floor(rand() * NUMBER_OF_SUBSCRIBERS) + 1);
             }
 
+            // مجموعات PON معطوبة
             const ponGroupsWithSplitterIssue = new Set();
             const numSplitterIssues = Math.floor(NUMBER_OF_PON_GROUPS * 0.2);
             while (ponGroupsWithSplitterIssue.size < numSplitterIssues) {
@@ -182,6 +184,7 @@
                 let degradationRate;
                 let suddenDrop = false;
 
+                // هل هو معرض للعطل؟
                 if (failureIds.has(i) || (groupHasIssue && rand() < 0.2)) {
                     const faultRand = rand();
                     if (faultRand < 0.3) {
@@ -200,8 +203,14 @@
                         degradationRate = 0.3 + rand() * 0.4;
                     }
                 } else {
-                    faultType = FAULT_TYPES.STABLE;
-                    degradationRate = rand() * 0.15;
+                    // مشترك مستقر، لكن نضيف بعض الحالات المتوسطة (مراقبة)
+                    if (rand() < 0.15) {
+                        faultType = FAULT_TYPES.CONTAMINATION; // مؤقتاً سنستخدم "مراقبة" لاحقاً
+                        degradationRate = 0.25 + rand() * 0.25; // بين 0.25 و0.5
+                    } else {
+                        faultType = FAULT_TYPES.STABLE;
+                        degradationRate = rand() * 0.15;
+                    }
                 }
 
                 const history = [];
@@ -362,19 +371,23 @@
         }
 
         function confidenceScore(slope, anomaly, history) {
-            // نحسب الثقة بناءً على مدى وضوح الاتجاه ووجود شذوذ
             let confidence = 0;
             const avgSlope = Math.abs(slope);
             if (avgSlope > 0.5) confidence += 60;
             else if (avgSlope > 0.3) confidence += 40;
             else if (avgSlope > 0.15) confidence += 20;
             if (anomaly) confidence += 20;
-            // إذا كانت آخر قيمة قريبة جداً من الحد الحرج، نرفع الثقة
             const lastRx = history[history.length-1];
             const distance = Math.abs(CRITICAL_THRESHOLD - lastRx);
             if (distance < 1) confidence += 20;
             else if (distance < 2) confidence += 10;
             return Math.min(95, confidence);
+        }
+
+        function survivalProbability(predictedRx) {
+            // دالة Sigmoid لتحويل المسافة عن الحد الحرج إلى احتمالية بقاء
+            const diff = predictedRx - CRITICAL_THRESHOLD;
+            return 1 / (1 + Math.exp(-diff / 1.5));
         }
 
         function predictFailure(subscriber) {
@@ -393,15 +406,15 @@
             let riskScore = Math.min(100, Math.abs(slope) * 60 + distanceToCritical * 5);
             if (anomaly) riskScore = Math.min(100, riskScore + 10);
 
-            const warning = (Math.abs(slope) > 0.35) || (monthsToCritical <= 4 && monthsToCritical >= 0);
+            // تحسين معيار التحذير: نعتبره خطرًا إذا كان معدل التدهور > 0.45 أو متوقع خلال 3 أشهر
+            const warning = (Math.abs(slope) > 0.45) || (monthsToCritical <= 3 && monthsToCritical >= 0);
             const confidence = confidenceScore(slope, anomaly, subscriber.history);
 
             // تحليل البقاء: احتمال البقاء لكل شهر قادم (1-3)
-            let survivalProbabilities = [];
+            const survivalProbabilities = [];
             for (let m = 1; m <= 3; m++) {
                 const predictedRx = intercept + slope * (MONTHS_HISTORY + m);
-                const prob = Math.max(0, Math.min(1, (predictedRx - CRITICAL_THRESHOLD) / 5 + 0.2));
-                survivalProbabilities.push(prob.toFixed(2));
+                survivalProbabilities.push(survivalProbability(predictedRx).toFixed(2));
             }
 
             return { slope, predictedMonths: monthsToCritical, riskScore, warning, anomaly, confidence, survivalProbabilities };
@@ -410,10 +423,13 @@
         function classifyRisk(pred) {
             const score = pred.riskScore;
             if (pred.warning) {
-                if (score >= 80 || (pred.predictedMonths !== Infinity && pred.predictedMonths <= 2)) return 'حرج';
-                else return 'خطر';
-            } else if (score >= 60) return 'مراقبة';
-            else return 'مستقر';
+                if (score >= 65) return 'حرج';
+                else if (score >= 50) return 'خطر';
+                else return 'خطر'; // في حال تحذير مع خطورة منخفضة، نعتبره خطرًا
+            } else {
+                if (score >= 20) return 'مراقبة';
+                else return 'مستقر';
+            }
         }
 
         function isPositiveRisk(category) { return category === 'خطر' || category === 'حرج'; }
@@ -510,14 +526,13 @@
             const sorted = subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore - predictions[a].riskScore);
             const top5 = sorted.slice(0,5);
 
-            // top 5 table
             const topTbody = document.getElementById('topRiskTbody');
             topTbody.innerHTML = '';
             top5.forEach(i => {
                 const sub = subscribers[i], pred = predictions[i], cat = categories[i];
                 const predictedText = pred.predictedMonths > 12 ? 'أكثر من سنة' : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1)+' شهر' : 'مستقر');
                 const actualStatus = sub.actualFailure ? '⚠️ سيتعطل فعلياً' : '✅ مستقر';
-                const rowClass = sub.actualFailure ? 'alert' : (isPositiveRisk(cat) ? 'warn' : 'safe');
+                const rowClass = sub.actualFailure ? 'alert' : (cat === 'حرج' ? 'alert' : cat === 'خطر' ? 'warn' : cat === 'مراقبة' ? 'monitor' : 'safe');
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>مشترك ${sub.id}</td>
@@ -534,21 +549,22 @@
                 topTbody.appendChild(tr);
             });
 
-            // all subscribers table
             const allTbody = document.getElementById('allSubscribersTbody');
             allTbody.innerHTML = '';
             sorted.forEach(i => {
                 const sub = subscribers[i], pred = predictions[i], cat = categories[i];
                 const predictedText = pred.predictedMonths > 12 ? 'أكثر من سنة' : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1)+' شهر' : 'مستقر');
                 const actualStatus = sub.actualFailure ? '⚠️ سيتعطل فعلياً' : '✅ مستقر';
-                const rowClass = sub.actualFailure ? 'alert' : (isPositiveRisk(cat) ? 'warn' : 'safe');
+                const rowClass = sub.actualFailure ? 'alert' : (cat === 'حرج' ? 'alert' : cat === 'خطر' ? 'warn' : cat === 'مراقبة' ? 'monitor' : 'safe');
                 let reason = '';
                 if (isPositiveRisk(cat)) {
                     reason = `معدل تدهور ${Math.abs(pred.slope).toFixed(3)} dB/شهر، متوقع العطل خلال ${predictedText}`;
                     if (pred.anomaly) reason += ' (شذوذ زمني مكتشف)';
                     if (sub.faultType && sub.faultType !== 'غير محدد' && sub.faultType !== FAULT_TYPES.STABLE) reason += ` (${sub.faultType})`;
+                } else if (cat === 'مراقبة') {
+                    reason = 'معدل تدهور متوسط، يوصى بالمراقبة';
                 } else {
-                    reason = 'المشترك مستقر أو تحت المراقبة';
+                    reason = 'المشترك مستقر';
                 }
                 const survivalText = pred.survivalProbabilities.map((p, idx) => `شهر ${idx+1}: ${p}`).join(' | ');
                 const tr = document.createElement('tr');
