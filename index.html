@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v6.2</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v6.3</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1200px; margin: 0 auto; }
         h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); padding: 20px; margin: 20px 0; }
         button { background-color: #1e3a8a; color: white; border: none; border-radius: 8px; padding: 12px 24px; font-size: 16px; cursor: pointer; width: auto; margin: 5px; }
         button:hover { background-color: #1e40af; }
-        input[type="file"] { display: none; }
         .file-label { background-color: #f59e0b; color: white; border: none; border-radius: 8px; padding: 12px 24px; font-size: 16px; cursor: pointer; margin: 5px; display: inline-block; }
-        input { padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100px; text-align: center; }
+        input[type="file"] { display: none; }
+        input[type="number"] { padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100px; text-align: center; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-size: 14px; }
         th { background-color: #1e3a8a; color: white; }
@@ -49,7 +49,7 @@
     </div>
 
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 6.2 (دعم CSV خارجي)</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 6.3 (تحليل الأسباب الجذرية)</p>
 
     <div class="card no-print">
         <h2>🔬 مصدر البيانات</h2>
@@ -89,6 +89,7 @@
                     <th>آخر Rx (dBm)</th>
                     <th>معدل التدهور (dB/شهر)</th>
                     <th>الشهر المتوقع للعطل</th>
+                    <th>السبب المحتمل</th>
                     <th>مؤشر الخطورة</th>
                     <th>التصنيف</th>
                     <th>الحالة الفعلية</th>
@@ -112,7 +113,7 @@
                         <th>المجموعة</th>
                         <th>آخر Rx (dBm)</th>
                         <th>معدل التدهور (dB/شهر)</th>
-                        <th>نوع العطل المحتمل</th>
+                        <th>السبب المحتمل</th>
                         <th>مؤشر الخطورة</th>
                         <th>التصنيف</th>
                         <th>الحالة الفعلية</th>
@@ -254,10 +255,7 @@
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const text = e.target.result;
-                processCSVData(text);
-            };
+            reader.onload = (e) => processCSVData(e.target.result);
             reader.readAsText(file);
             event.target.value = '';
         }
@@ -273,7 +271,6 @@
             const lines = text.trim().split('\n');
             if (lines.length < 2) { alert('الملف فارغ أو غير صالح'); return; }
             const headers = lines[0].split(',').map(h => h.trim());
-            // التحقق من الأعمدة المطلوبة
             const required = ['subscriber_id', 'month_1', 'month_2', 'month_3', 'month_4', 'month_5', 'month_6', 'month_7', 'month_8', 'actual_failure'];
             const missing = required.filter(r => !headers.includes(r));
             if (missing.length > 0) {
@@ -297,20 +294,62 @@
                     history: history,
                     actualRx: history[history.length - 1],
                     actualFailure: actualFailure,
-                    degradationRate: 0, // سيُحسب لاحقاً
+                    degradationRate: 0,
                     faultType: 'غير محدد'
                 });
             }
-            // حساب معدل التدهور التقريبي لكل مشترك
             subscribers.forEach(sub => {
                 const first = sub.history[0];
                 const last = sub.history[sub.history.length - 1];
                 sub.degradationRate = (first - last) / (MONTHS_HISTORY - 1);
-                if (sub.actualFailure) sub.faultType = 'غير محدد'; // يمكن تحسينه
+                sub.faultType = determineRootCause(sub);
             });
 
             window.dataSource = 'csv';
             processSubscribers(subscribers);
+        }
+
+        // ==================== ROOT CAUSE ANALYSIS ====================
+        function determineRootCause(subscriber) {
+            const h = subscriber.history;
+            // احسب فروق بين الأشهر
+            const diffs = [];
+            for (let i = 1; i < h.length; i++) {
+                diffs.push(h[i-1] - h[i]);
+            }
+            if (diffs.length < 3) return FAULT_TYPES.STABLE;
+
+            const avgDrop = subscriber.degradationRate || 0;
+
+            // انخفاض مفاجئ كبير في آخر فترة
+            const lastDrop = diffs[diffs.length - 1];
+            const prevDrop = diffs[diffs.length - 2];
+
+            // تدهور متقطع: تغيرات كبيرة ثم صغيرة
+            const maxDrop = Math.max(...diffs);
+            const minDrop = Math.min(...diffs);
+            const std = Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / diffs.length);
+
+            // كسر ليفي: هبوط حاد مفاجئ في آخر شهر
+            if (lastDrop > 2.5 || (lastDrop > 1.5 && lastDrop > 2 * avgDrop)) {
+                return FAULT_TYPES.BREAK;
+            }
+            // انحناء حاد: هبوط مفاجئ في منتصف المدة ثم استقرار
+            else if (maxDrop > 1.2 && std > 0.4) {
+                return FAULT_TYPES.MACROBEND;
+            }
+            // لحام رديء: تدهور متقطع (فرق كبير بين القيم)
+            else if (std > 0.3 && minDrop < 0.05) {
+                return FAULT_TYPES.SPLICE;
+            }
+            // تلوث موصل: تدهور بطيء ثابت
+            else if (avgDrop > 0.15 && std <= 0.3) {
+                return FAULT_TYPES.CONTAMINATION;
+            }
+            // مستقر
+            else {
+                return FAULT_TYPES.STABLE;
+            }
         }
 
         // ==================== PREDICTION ====================
@@ -418,6 +457,13 @@
 
         // ==================== RENDER ====================
         function processSubscribers(subscribers) {
+            // Determine root cause for simulation subscribers
+            if (window.dataSource !== 'csv') {
+                subscribers.forEach(sub => {
+                    sub.faultType = determineRootCause(sub);
+                });
+            }
+
             const predictions = subscribers.map(sub => predictFailure(sub));
             const categories = predictions.map(p => classifyRisk(p));
             const metrics = computeMetrics(subscribers, predictions, categories);
@@ -452,8 +498,8 @@
                 <div class="stat-item"><div class="label">حرج</div><div class="value">${catCounts['حرج']}</div></div>
             `;
 
-            // PON summary (only for simulation)
-            if (window.dataSource === 'simulation') {
+            // PON summary
+            if (window.dataSource !== 'csv') {
                 document.getElementById('ponSection').style.display = 'block';
                 const ponSummary = document.getElementById('ponSummary');
                 let groupStats = '';
@@ -485,6 +531,7 @@
                     <td>${sub.history[sub.history.length-1].toFixed(2)}</td>
                     <td>${sub.degradationRate.toFixed(3)}</td>
                     <td>${predictedText}</td>
+                    <td>${sub.faultType || 'غير محدد'}</td>
                     <td>${pred.riskScore.toFixed(1)}</td>
                     <td>${cat}</td>
                     <td class="${rowClass}">${actualStatus}</td>
@@ -504,7 +551,7 @@
                 if (isPositiveRisk(cat)) {
                     reason = `معدل تدهور ${Math.abs(pred.slope).toFixed(3)} dB/شهر، متوقع العطل خلال ${predictedText}`;
                     if (pred.anomaly) reason += ' (شذوذ زمني مكتشف)';
-                    if (sub.faultType !== 'غير محدد' && sub.faultType !== 'مستقر') reason += ` (${sub.faultType})`;
+                    if (sub.faultType && sub.faultType !== 'غير محدد' && sub.faultType !== FAULT_TYPES.STABLE) reason += ` (${sub.faultType})`;
                 } else {
                     reason = 'المشترك مستقر أو تحت المراقبة';
                 }
@@ -661,7 +708,7 @@
         function exportCSV() {
             if (!window.lastResults) { alert('يرجى تشغيل التحليل أولاً'); return; }
             const { subscribers, predictions, categories } = window.lastResults;
-            let csv = 'المشترك,المجموعة,آخر Rx (dBm),معدل التدهور (dB/شهر),نوع العطل المحتمل,مؤشر الخطورة,التصنيف,الحالة الفعلية,شذوذ\n';
+            let csv = 'المشترك,المجموعة,آخر Rx (dBm),معدل التدهور (dB/شهر),السبب المحتمل,مؤشر الخطورة,التصنيف,الحالة الفعلية,شذوذ\n';
             subscribers.forEach((sub,i) => {
                 const pred = predictions[i], cat = categories[i];
                 const actual = sub.actualFailure ? 'عطل حقيقي' : 'مستقر';
