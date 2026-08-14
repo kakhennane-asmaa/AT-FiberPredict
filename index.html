@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v6.3</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v7.0</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1200px; margin: 0 auto; }
         h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
@@ -34,6 +34,7 @@
         .download-btn { background-color: #16a34a; }
         .download-btn:hover { background-color: #15803d; }
         .print-header { display: none; }
+        .survival-box { background: #f0f9ff; border-radius: 8px; padding: 6px; font-size: 12px; }
         @media print {
             body { background: white; }
             .card { box-shadow: none; border: none; }
@@ -49,7 +50,7 @@
     </div>
 
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 6.3 (تحليل الأسباب الجذرية)</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 7.0 (مؤشر الثقة + تحليل البقاء)</p>
 
     <div class="card no-print">
         <h2>🔬 مصدر البيانات</h2>
@@ -91,6 +92,7 @@
                     <th>الشهر المتوقع للعطل</th>
                     <th>السبب المحتمل</th>
                     <th>مؤشر الخطورة</th>
+                    <th>الثقة</th>
                     <th>التصنيف</th>
                     <th>الحالة الفعلية</th>
                 </tr>
@@ -115,9 +117,11 @@
                         <th>معدل التدهور (dB/شهر)</th>
                         <th>السبب المحتمل</th>
                         <th>مؤشر الخطورة</th>
+                        <th>الثقة</th>
                         <th>التصنيف</th>
                         <th>الحالة الفعلية</th>
                         <th>سبب الخطورة</th>
+                        <th>تحليل البقاء</th>
                     </tr>
                 </thead>
                 <tbody id="allSubscribersTbody"></tbody>
@@ -131,7 +135,6 @@
     </div>
 
     <script>
-        // ==================== CONSTANTS ====================
         const CRITICAL_THRESHOLD = -28.0;
         const MONTHS_HISTORY = 8;
         const MONTHS_FUTURE = 3;
@@ -146,7 +149,6 @@
             SPLICE: 'لحام رديء'
         };
 
-        // ==================== SEEDED RANDOM ====================
         function mulberry32(seed) {
             let a = seed >>> 0;
             return function() {
@@ -157,7 +159,6 @@
             }
         }
 
-        // ==================== DEFAULT SIMULATION ====================
         function generateSubscribers(rand) {
             const subscribers = [];
             const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.20);
@@ -250,7 +251,6 @@
             return subscribers;
         }
 
-        // ==================== CSV LOADING ====================
         function handleCSVFile(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -309,50 +309,24 @@
             processSubscribers(subscribers);
         }
 
-        // ==================== ROOT CAUSE ANALYSIS ====================
         function determineRootCause(subscriber) {
             const h = subscriber.history;
-            // احسب فروق بين الأشهر
             const diffs = [];
-            for (let i = 1; i < h.length; i++) {
-                diffs.push(h[i-1] - h[i]);
-            }
+            for (let i = 1; i < h.length; i++) diffs.push(h[i-1] - h[i]);
             if (diffs.length < 3) return FAULT_TYPES.STABLE;
-
             const avgDrop = subscriber.degradationRate || 0;
-
-            // انخفاض مفاجئ كبير في آخر فترة
             const lastDrop = diffs[diffs.length - 1];
-            const prevDrop = diffs[diffs.length - 2];
-
-            // تدهور متقطع: تغيرات كبيرة ثم صغيرة
             const maxDrop = Math.max(...diffs);
             const minDrop = Math.min(...diffs);
             const std = Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / diffs.length);
 
-            // كسر ليفي: هبوط حاد مفاجئ في آخر شهر
-            if (lastDrop > 2.5 || (lastDrop > 1.5 && lastDrop > 2 * avgDrop)) {
-                return FAULT_TYPES.BREAK;
-            }
-            // انحناء حاد: هبوط مفاجئ في منتصف المدة ثم استقرار
-            else if (maxDrop > 1.2 && std > 0.4) {
-                return FAULT_TYPES.MACROBEND;
-            }
-            // لحام رديء: تدهور متقطع (فرق كبير بين القيم)
-            else if (std > 0.3 && minDrop < 0.05) {
-                return FAULT_TYPES.SPLICE;
-            }
-            // تلوث موصل: تدهور بطيء ثابت
-            else if (avgDrop > 0.15 && std <= 0.3) {
-                return FAULT_TYPES.CONTAMINATION;
-            }
-            // مستقر
-            else {
-                return FAULT_TYPES.STABLE;
-            }
+            if (lastDrop > 2.5 || (lastDrop > 1.5 && lastDrop > 2 * avgDrop)) return FAULT_TYPES.BREAK;
+            else if (maxDrop > 1.2 && std > 0.4) return FAULT_TYPES.MACROBEND;
+            else if (std > 0.3 && minDrop < 0.05) return FAULT_TYPES.SPLICE;
+            else if (avgDrop > 0.15 && std <= 0.3) return FAULT_TYPES.CONTAMINATION;
+            else return FAULT_TYPES.STABLE;
         }
 
-        // ==================== PREDICTION ====================
         function smoothSeries(data, windowSize = 3) {
             const smoothed = [];
             for (let i = 0; i < data.length; i++) {
@@ -387,6 +361,22 @@
             return (prev - last) > 2 * std;
         }
 
+        function confidenceScore(slope, anomaly, history) {
+            // نحسب الثقة بناءً على مدى وضوح الاتجاه ووجود شذوذ
+            let confidence = 0;
+            const avgSlope = Math.abs(slope);
+            if (avgSlope > 0.5) confidence += 60;
+            else if (avgSlope > 0.3) confidence += 40;
+            else if (avgSlope > 0.15) confidence += 20;
+            if (anomaly) confidence += 20;
+            // إذا كانت آخر قيمة قريبة جداً من الحد الحرج، نرفع الثقة
+            const lastRx = history[history.length-1];
+            const distance = Math.abs(CRITICAL_THRESHOLD - lastRx);
+            if (distance < 1) confidence += 20;
+            else if (distance < 2) confidence += 10;
+            return Math.min(95, confidence);
+        }
+
         function predictFailure(subscriber) {
             const smoothed = smoothSeries(subscriber.history, 3);
             const { slope, intercept } = linearRegression(smoothed);
@@ -404,8 +394,17 @@
             if (anomaly) riskScore = Math.min(100, riskScore + 10);
 
             const warning = (Math.abs(slope) > 0.35) || (monthsToCritical <= 4 && monthsToCritical >= 0);
+            const confidence = confidenceScore(slope, anomaly, subscriber.history);
 
-            return { slope, predictedMonths: monthsToCritical, riskScore, warning, anomaly };
+            // تحليل البقاء: احتمال البقاء لكل شهر قادم (1-3)
+            let survivalProbabilities = [];
+            for (let m = 1; m <= 3; m++) {
+                const predictedRx = intercept + slope * (MONTHS_HISTORY + m);
+                const prob = Math.max(0, Math.min(1, (predictedRx - CRITICAL_THRESHOLD) / 5 + 0.2));
+                survivalProbabilities.push(prob.toFixed(2));
+            }
+
+            return { slope, predictedMonths: monthsToCritical, riskScore, warning, anomaly, confidence, survivalProbabilities };
         }
 
         function classifyRisk(pred) {
@@ -419,7 +418,6 @@
 
         function isPositiveRisk(category) { return category === 'خطر' || category === 'حرج'; }
 
-        // ==================== METRICS & ROC ====================
         function computeMetrics(subscribers, predictions, categories) {
             let tp=0,fp=0,tn=0,fn=0;
             subscribers.forEach((sub, i) => {
@@ -455,9 +453,7 @@
             return { points, auc };
         }
 
-        // ==================== RENDER ====================
         function processSubscribers(subscribers) {
-            // Determine root cause for simulation subscribers
             if (window.dataSource !== 'csv') {
                 subscribers.forEach(sub => {
                     sub.faultType = determineRootCause(sub);
@@ -471,7 +467,6 @@
 
             window.lastResults = { subscribers, predictions, categories, metrics, roc };
 
-            // metrics
             document.getElementById('metricsBox').innerHTML = `
                 <div class="metric"><span>${subscribers.length}</span>مشترك</div>
                 <div class="metric"><span>${metrics.tp + metrics.fn}</span>أعطال حقيقية</div>
@@ -498,7 +493,6 @@
                 <div class="stat-item"><div class="label">حرج</div><div class="value">${catCounts['حرج']}</div></div>
             `;
 
-            // PON summary
             if (window.dataSource !== 'csv') {
                 document.getElementById('ponSection').style.display = 'block';
                 const ponSummary = document.getElementById('ponSummary');
@@ -533,6 +527,7 @@
                     <td>${predictedText}</td>
                     <td>${sub.faultType || 'غير محدد'}</td>
                     <td>${pred.riskScore.toFixed(1)}</td>
+                    <td>${pred.confidence}%</td>
                     <td>${cat}</td>
                     <td class="${rowClass}">${actualStatus}</td>
                 `;
@@ -555,6 +550,7 @@
                 } else {
                     reason = 'المشترك مستقر أو تحت المراقبة';
                 }
+                const survivalText = pred.survivalProbabilities.map((p, idx) => `شهر ${idx+1}: ${p}`).join(' | ');
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>مشترك ${sub.id}</td>
@@ -563,14 +559,15 @@
                     <td>${sub.degradationRate.toFixed(3)}</td>
                     <td>${sub.faultType || 'غير محدد'}</td>
                     <td>${pred.riskScore.toFixed(1)}</td>
+                    <td>${pred.confidence}%</td>
                     <td>${cat}</td>
                     <td class="${rowClass}">${actualStatus}</td>
                     <td>${reason}</td>
+                    <td class="survival-box">${survivalText}</td>
                 `;
                 allTbody.appendChild(tr);
             });
 
-            // charts
             drawSignalChartManual(subscribers, top5);
             drawROCChartManual(roc.points, roc.auc);
 
@@ -578,7 +575,6 @@
             document.getElementById('compareResults').style.display = 'none';
         }
 
-        // ==================== CHARTS ====================
         function drawSignalChartManual(subscribers, indices) {
             const canvas = document.getElementById('signalChart');
             const ctx = canvas.getContext('2d');
@@ -659,7 +655,6 @@
             ctx.fillText('AUC = '+auc.toFixed(3), W/2, 30);
         }
 
-        // ==================== RUN SIMULATION ====================
         function runPrediction() {
             const seedValue = parseInt(document.getElementById('seedInput').value, 10) || 42;
             const rand = mulberry32(seedValue);
@@ -668,7 +663,6 @@
             processSubscribers(subscribers);
         }
 
-        // ==================== COMPARE ====================
         function compareTwoSeeds() {
             const seed1 = parseInt(document.getElementById('seedInput').value,10)||42;
             const seed2 = seed1+100;
@@ -704,16 +698,15 @@
             document.getElementById('results').style.display='none';
         }
 
-        // ==================== EXPORT CSV ====================
         function exportCSV() {
             if (!window.lastResults) { alert('يرجى تشغيل التحليل أولاً'); return; }
             const { subscribers, predictions, categories } = window.lastResults;
-            let csv = 'المشترك,المجموعة,آخر Rx (dBm),معدل التدهور (dB/شهر),السبب المحتمل,مؤشر الخطورة,التصنيف,الحالة الفعلية,شذوذ\n';
+            let csv = 'المشترك,المجموعة,آخر Rx (dBm),معدل التدهور (dB/شهر),السبب المحتمل,مؤشر الخطورة,الثقة,التصنيف,الحالة الفعلية,تحليل البقاء\n';
             subscribers.forEach((sub,i) => {
                 const pred = predictions[i], cat = categories[i];
                 const actual = sub.actualFailure ? 'عطل حقيقي' : 'مستقر';
-                const anomaly = pred.anomaly ? 'نعم' : 'لا';
-                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${cat},${actual},${anomaly}\n`;
+                const survival = pred.survivalProbabilities.join('|');
+                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${pred.confidence}%,${cat},${actual},${survival}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
