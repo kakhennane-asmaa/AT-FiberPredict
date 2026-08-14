@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v4.2</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v5.0</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1100px; margin: 0 auto; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1200px; margin: 0 auto; }
         h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); padding: 20px; margin: 20px 0; }
         button { background-color: #1e3a8a; color: white; border: none; border-radius: 8px; padding: 12px 24px; font-size: 16px; cursor: pointer; width: auto; margin: 5px; }
@@ -30,13 +30,26 @@
         .stat-item .value { font-size: 22px; font-weight: bold; color: #1e3a8a; }
         .download-btn { background-color: #16a34a; }
         .download-btn:hover { background-color: #15803d; }
+        .table-container { max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
+        .print-header { display: none; }
+        @media print {
+            body { background: white; }
+            .card { box-shadow: none; border: none; }
+            .no-print { display: none; }
+            .print-header { display: block; text-align: center; margin-bottom: 20px; }
+        }
     </style>
 </head>
 <body>
-    <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 4.2 (رسوم مدمجة)</p>
+    <div class="print-header">
+        <h1>AT-FiberPredict - تقرير التنبؤ الوقائي</h1>
+        <p>تاريخ التقرير: <span id="printDate"></span></p>
+    </div>
 
-    <div class="card">
+    <h1>🧠 AT-FiberPredict</h1>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 5.0</p>
+
+    <div class="card no-print">
         <h2>🔬 محاكاة واقعية لـ 200 مشترك</h2>
         <p>يولد النظام بيانات قياسات Rx لآخر 8 أشهر، ويحاكي 3 أشهر إضافية مستقبلية لتحديد من سيتعطل فعلاً خلالها، ثم يطبق خوارزمية تنبؤ محسّنة (انحدار خطي + تنعيم + مؤشر خطورة) ويقيس دقتها ومعايير ROC/AUC.</p>
         <div class="seed-box">
@@ -47,9 +60,10 @@
         <button onclick="runPrediction()">▶️ تشغيل المحاكاة والتنبؤ</button>
         <button onclick="compareTwoSeeds()">🔁 مقارنة بذرتين مختلفتين</button>
         <button onclick="exportCSV()" class="download-btn">📥 تصدير النتائج CSV</button>
+        <button onclick="printReport()" class="download-btn" style="background-color:#0ea5e9;">🖨️ تقرير PDF / طباعة</button>
     </div>
 
-    <div id="results" class="card" style="display:none;">
+    <div id="results" class="card">
         <h2>📊 نتائج التحليل</h2>
         <div class="metrics" id="metricsBox"></div>
         <p id="summary" class="info" style="margin-top:15px;"></p>
@@ -77,6 +91,25 @@
 
         <h3>📉 منحنى ROC</h3>
         <canvas id="rocChart" width="500" height="300"></canvas>
+
+        <h3>📋 جميع المشتركين (مرتبون حسب الخطورة)</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>المشترك</th>
+                        <th>آخر Rx (dBm)</th>
+                        <th>معدل التدهور (dB/شهر)</th>
+                        <th>نوع العطل المحتمل</th>
+                        <th>مؤشر الخطورة</th>
+                        <th>التصنيف</th>
+                        <th>الحالة الفعلية</th>
+                        <th>سبب الخطورة</th>
+                    </tr>
+                </thead>
+                <tbody id="allSubscribersTbody"></tbody>
+            </table>
+        </div>
     </div>
 
     <div id="compareResults" class="card" style="display:none;">
@@ -90,6 +123,15 @@
         const MONTHS_FUTURE = 3;
         const NUMBER_OF_SUBSCRIBERS = 200;
 
+        // أنواع الأعطال
+        const FAULT_TYPES = {
+            STABLE: 'مستقر',
+            CONTAMINATION: 'تلوث موصل',
+            MACROBEND: 'انحناء حاد',
+            BREAK: 'كسر ليفي',
+            SPLICE: 'لحام رديء'
+        };
+
         function mulberry32(seed) {
             let a = seed >>> 0;
             return function() {
@@ -100,6 +142,7 @@
             }
         }
 
+        // توليد بيانات واقعية مع أنواع أعطال مختلفة
         function generateSubscribers(rand) {
             const subscribers = [];
             const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.20);
@@ -110,11 +153,32 @@
 
             for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
                 let rx = -17 - rand() * 7;
+                let faultType;
                 let degradationRate;
+                let suddenDrop = false;
+
                 if (failureIds.has(i)) {
-                    degradationRate = 0.4 + rand() * 0.8;
+                    // اختر نوع عطل عشوائي
+                    const faultRand = rand();
+                    if (faultRand < 0.3) {
+                        faultType = FAULT_TYPES.CONTAMINATION;
+                        degradationRate = 0.2 + rand() * 0.3; // بطيء
+                    } else if (faultRand < 0.55) {
+                        faultType = FAULT_TYPES.MACROBEND;
+                        degradationRate = 0.5 + rand() * 0.4;
+                        suddenDrop = Math.random() < 0.5; // قد يحدث هبوط مفاجئ
+                    } else if (faultRand < 0.75) {
+                        faultType = FAULT_TYPES.BREAK;
+                        degradationRate = 0.7 + rand() * 0.5;
+                        suddenDrop = true;
+                    } else {
+                        faultType = FAULT_TYPES.SPLICE;
+                        degradationRate = 0.3 + rand() * 0.4;
+                        // لحام رديء: تدهور متقطع (فترات استقرار ثم هبوط)
+                    }
                 } else {
-                    degradationRate = rand() * 0.2;
+                    faultType = FAULT_TYPES.STABLE;
+                    degradationRate = rand() * 0.15; // شبه مستقر
                 }
 
                 const history = [];
@@ -125,13 +189,43 @@
                     const noise = (rand() - 0.5) * 0.5;
                     const seasonal = seasonalPattern[m];
                     history.push(current + noise + seasonal);
-                    current -= degradationRate;
+
+                    // تطبيق نمط التدهور حسب النوع
+                    if (faultType === FAULT_TYPES.SPLICE) {
+                        // لحام: ثبات لفترة ثم هبوط
+                        if (m % 3 === 0 || m % 2 === 0) {
+                            current -= degradationRate;
+                        }
+                    } else if (faultType === FAULT_TYPES.BREAK) {
+                        // كسر: تدهور ثابت مع هبوط حاد في الشهر الأخير
+                        if (m === MONTHS_HISTORY - 1) {
+                            current -= 2.5; // هبوط حاد
+                        } else {
+                            current -= degradationRate;
+                        }
+                    } else if (faultType === FAULT_TYPES.MACROBEND) {
+                        // انحناء: تدهور مع هبوط مفاجئ في منتصف المدة
+                        if (suddenDrop && m === 3) {
+                            current -= 1.5;
+                        } else {
+                            current -= degradationRate;
+                        }
+                    } else {
+                        // تلوث: تدهور بطيء ثابت
+                        current -= degradationRate;
+                    }
                 }
                 const lastActualRx = current;
 
                 let futureFailure = false;
                 for (let f = 0; f < MONTHS_FUTURE; f++) {
-                    current -= degradationRate;
+                    if (faultType === FAULT_TYPES.SPLICE && f % 2 === 0) {
+                        current -= degradationRate;
+                    } else if (faultType === FAULT_TYPES.BREAK && f === 1) {
+                        current -= 2.5;
+                    } else {
+                        current -= degradationRate;
+                    }
                     const futureNoise = (rand() - 0.5) * 0.3;
                     const futureSeasonal = seasonalPattern[(MONTHS_HISTORY + f) % seasonalPattern.length];
                     const futureRx = current + futureNoise + futureSeasonal;
@@ -148,7 +242,8 @@
                     history: history,
                     actualRx: lastActualRx,
                     actualFailure: actualFailure,
-                    degradationRate: degradationRate
+                    degradationRate: degradationRate,
+                    faultType: faultType
                 });
             }
             return subscribers;
@@ -265,6 +360,7 @@
 
                 window.lastResults = { subscribers, predictions, categories, metrics, roc };
 
+                // عرض المقاييس
                 document.getElementById('metricsBox').innerHTML = `
                     <div class="metric"><span>${subscribers.length}</span>مشترك</div>
                     <div class="metric"><span>${metrics.tp + metrics.fn}</span>أعطال حقيقية</div>
@@ -283,6 +379,7 @@
                     <br>البذرة المستخدمة: <strong>${seedValue}</strong>.
                 `;
 
+                // إحصائيات التصنيف
                 const catCounts = { 'مستقر': 0, 'مراقبة': 0, 'خطر': 0, 'حرج': 0 };
                 categories.forEach(c => catCounts[c]++);
                 document.getElementById('categoryStats').innerHTML = `
@@ -292,9 +389,11 @@
                     <div class="stat-item"><div class="label">حرج</div><div class="value">${catCounts['حرج']}</div></div>
                 `;
 
+                // ترتيب المشتركين حسب الخطورة
                 const sortedIndices = subscribers.map((_, i) => i)
                     .sort((a, b) => predictions[b].riskScore - predictions[a].riskScore);
 
+                // أعلى 5 خطورة
                 const top5 = sortedIndices.slice(0, 5);
                 const tbody = document.getElementById('topRiskTbody');
                 tbody.innerHTML = '';
@@ -318,7 +417,42 @@
                     tbody.appendChild(tr);
                 });
 
-                // رسم المنحنيات يدوياً (بدون مكتبة خارجية)
+                // جميع المشتركين (مرتبون)
+                const allTbody = document.getElementById('allSubscribersTbody');
+                allTbody.innerHTML = '';
+                sortedIndices.forEach(i => {
+                    const sub = subscribers[i];
+                    const pred = predictions[i];
+                    const cat = categories[i];
+                    const predictedText = pred.predictedMonths > 12 ? 'أكثر من سنة' : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1) + ' شهر' : 'مستقر');
+                    const actualStatus = sub.actualFailure ? '⚠️ سيتعطل فعلياً' : '✅ مستقر';
+                    const rowClass = sub.actualFailure ? 'alert' : (isPositiveRisk(cat) ? 'warn' : 'safe');
+                    // سبب الخطورة
+                    let reason = '';
+                    if (isPositiveRisk(cat)) {
+                        reason = `معدل تدهور ${Math.abs(pred.slope).toFixed(3)} dB/شهر، متوقع العطل خلال ${predictedText}`;
+                        if (sub.faultType === FAULT_TYPES.MACROBEND) reason += ' (انحناء حاد)';
+                        else if (sub.faultType === FAULT_TYPES.BREAK) reason += ' (كسر ليفي)';
+                        else if (sub.faultType === FAULT_TYPES.CONTAMINATION) reason += ' (تلوث موصل)';
+                        else if (sub.faultType === FAULT_TYPES.SPLICE) reason += ' (لحام رديء)';
+                    } else {
+                        reason = 'المشترك مستقر أو تحت المراقبة';
+                    }
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>مشترك ${sub.id}</td>
+                        <td>${sub.history[sub.history.length-1].toFixed(2)}</td>
+                        <td>${sub.degradationRate.toFixed(3)}</td>
+                        <td>${sub.faultType}</td>
+                        <td>${pred.riskScore.toFixed(1)}</td>
+                        <td>${cat}</td>
+                        <td class="${rowClass}">${actualStatus}</td>
+                        <td>${reason}</td>
+                    `;
+                    allTbody.appendChild(tr);
+                });
+
+                // رسم المنحنيات يدوياً
                 drawSignalChartManual(subscribers, top5);
                 drawROCChartManual(roc.points, roc.auc);
 
@@ -343,7 +477,6 @@
             const chartW = W - padding * 2;
             const chartH = H - padding * 2;
 
-            // محاور
             ctx.strokeStyle = '#ccc';
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -352,7 +485,6 @@
             ctx.lineTo(W - padding, H - padding);
             ctx.stroke();
 
-            // عناوين المحاور
             ctx.fillStyle = '#333';
             ctx.font = '12px Segoe UI, Tahoma';
             ctx.textAlign = 'center';
@@ -363,12 +495,10 @@
             ctx.fillText('Rx Power (dBm)', 0, 0);
             ctx.restore();
 
-            // تحديد القيم القصوى والدنيا
             const allValues = indices.flatMap(i => subscribers[i].history);
             const maxVal = Math.max(...allValues) + 1;
             const minVal = Math.min(...allValues) - 1;
 
-            // رسم المنحنيات
             const colors = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#7c3aed'];
             indices.forEach((idx, k) => {
                 const sub = subscribers[idx];
@@ -384,7 +514,6 @@
                 }
                 ctx.stroke();
 
-                // نقاط
                 ctx.fillStyle = color;
                 for (let m = 0; m < sub.history.length; m++) {
                     const x = padding + (m / (MONTHS_HISTORY - 1)) * chartW;
@@ -395,7 +524,6 @@
                 }
             });
 
-            // رسم خط الحد الحرج
             const yCrit = padding + ((maxVal - CRITICAL_THRESHOLD) / (maxVal - minVal)) * chartH;
             ctx.strokeStyle = '#b91c1c';
             ctx.setLineDash([6, 4]);
@@ -410,7 +538,6 @@
             ctx.textAlign = 'left';
             ctx.fillText('الحد الحرج -28 dBm', W - padding - 120, yCrit - 5);
 
-            // أسطورة
             ctx.textAlign = 'left';
             let legendY = padding;
             indices.forEach((idx, k) => {
@@ -436,7 +563,6 @@
             const chartW = W - padding * 2;
             const chartH = H - padding * 2;
 
-            // محاور
             ctx.strokeStyle = '#ccc';
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -455,7 +581,6 @@
             ctx.fillText('True Positive Rate', 0, 0);
             ctx.restore();
 
-            // خط قطري
             ctx.strokeStyle = '#d1d5db';
             ctx.setLineDash([4, 4]);
             ctx.beginPath();
@@ -464,7 +589,6 @@
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // رسم منحنى ROC
             ctx.strokeStyle = '#1e3a8a';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -533,18 +657,27 @@
                 return;
             }
             const { subscribers, predictions, categories } = window.lastResults;
-            let csv = 'المشترك,آخر Rx (dBm),معدل التدهور (dB/شهر),مؤشر الخطورة,التصنيف,الحالة الفعلية\n';
+            let csv = 'المشترك,آخر Rx (dBm),معدل التدهور (dB/شهر),نوع العطل المحتمل,مؤشر الخطورة,التصنيف,الحالة الفعلية\n';
             subscribers.forEach((sub, i) => {
                 const pred = predictions[i];
                 const cat = categories[i];
                 const actual = sub.actualFailure ? 'عطل حقيقي' : 'مستقر';
-                csv += `${sub.id},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${pred.riskScore.toFixed(1)},${cat},${actual}\n`;
+                csv += `${sub.id},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${cat},${actual}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = 'AT-FiberPredict_Results.csv';
             link.click();
+        }
+
+        function printReport() {
+            if (!window.lastResults) {
+                alert('يرجى تشغيل المحاكاة أولاً');
+                return;
+            }
+            document.getElementById('printDate').innerText = new Date().toLocaleString();
+            window.print();
         }
     </script>
 </body>
