@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - محرك التنبؤ الوقائي v6.0</title>
+    <title>AT-FiberPredict - محرك التنبؤ الوقائي v6.1</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f1f5f9; color: #1e293b; padding: 20px; max-width: 1200px; margin: 0 auto; }
         h1 { color: #1e3a8a; text-align: center; margin-bottom: 10px; }
@@ -32,7 +32,6 @@
         .download-btn { background-color: #16a34a; }
         .download-btn:hover { background-color: #15803d; }
         .print-header { display: none; }
-        .group-highlight { background-color: #fff3cd; }
         @media print {
             body { background: white; }
             .card { box-shadow: none; border: none; }
@@ -48,7 +47,7 @@
     </div>
 
     <h1>🧠 AT-FiberPredict</h1>
-    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 6.0 (شبكة PON + كشف الشذوذ)</p>
+    <p class="info">محرك التنبؤ الوقائي لأعطال FTTH/GPON - الإصدار 6.1</p>
 
     <div class="card no-print">
         <h2>🔬 محاكاة واقعية لـ 200 مشترك</h2>
@@ -128,7 +127,7 @@
         const MONTHS_HISTORY = 8;
         const MONTHS_FUTURE = 3;
         const NUMBER_OF_SUBSCRIBERS = 200;
-        const NUMBER_OF_PON_GROUPS = 10; // مجموعات PON (10 مجموعات، كل مجموعة 20 مشترك)
+        const NUMBER_OF_PON_GROUPS = 10;
 
         // أنواع الأعطال
         const FAULT_TYPES = {
@@ -152,23 +151,22 @@
         // توليد بيانات واقعية مع طوبولوجيا PON وكشف الشذوذ
         function generateSubscribers(rand) {
             const subscribers = [];
+            // عدد الأعطال الحقيقية
             const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.20);
             const failureIds = new Set();
             while (failureIds.size < numFailures) {
                 failureIds.add(Math.floor(rand() * NUMBER_OF_SUBSCRIBERS) + 1);
             }
 
-            // تحديد مجموعات PON ذات مشاكل على مستوى الـ Splitter
+            // مجموعات PON التي لديها مشكلة Splitter (تؤثر على المجموعة لكن ليس بالضرورة كل المشتركين)
             const ponGroupsWithSplitterIssue = new Set();
-            const numSplitterIssues = Math.floor(NUMBER_OF_PON_GROUPS * 0.2); // 20% من المجموعات لديها مشكلة
+            const numSplitterIssues = Math.floor(NUMBER_OF_PON_GROUPS * 0.2);
             while (ponGroupsWithSplitterIssue.size < numSplitterIssues) {
                 ponGroupsWithSplitterIssue.add(Math.floor(rand() * NUMBER_OF_PON_GROUPS) + 1);
             }
 
             for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
-                // توزيع المشتركين على مجموعات PON
                 const groupId = ((i - 1) % NUMBER_OF_PON_GROUPS) + 1;
-                // إذا كانت المجموعة لديها مشكلة في Splitter، نزيد احتمالية التدهور لجميع أفرادها
                 const groupHasIssue = ponGroupsWithSplitterIssue.has(groupId);
                 
                 let rx = -17 - rand() * 7;
@@ -176,10 +174,9 @@
                 let degradationRate;
                 let suddenDrop = false;
 
-                // هل هذا المشترك من ضمن قائمة الأعطال؟
-                if (failureIds.has(i) || (groupHasIssue && rand() < 0.3)) {
-                    // إذا كانت المجموعة لديها مشكلة Splitter، قد لا يكون المشترك بالضرورة في failureIds لكننا نضيفه
-                    // لأن الـ Splitter يؤثر على الجميع
+                // تحديد ما إذا كان المشترك معرضًا للعطل
+                if (failureIds.has(i) || (groupHasIssue && rand() < 0.2)) {
+                    // 20% من أفراد المجموعة المعطوبة يصبحون أعطالًا إضافية
                     const faultRand = rand();
                     if (faultRand < 0.3) {
                         faultType = FAULT_TYPES.CONTAMINATION;
@@ -288,9 +285,8 @@
             return { slope, intercept };
         }
 
-        // كشف الشذوذ الزمني
+        // كشف الشذوذ الزمني (أكثر صرامة)
         function detectTemporalAnomaly(history) {
-            // نحسب المتوسط والانحراف المعياري لآخر 3 نقاط
             const lastThree = history.slice(-3);
             if (lastThree.length < 3) return false;
             const mean = lastThree.reduce((a,b) => a+b, 0) / lastThree.length;
@@ -298,8 +294,8 @@
             const std = Math.sqrt(variance);
             const last = lastThree[lastThree.length - 1];
             const prev = lastThree[lastThree.length - 2];
-            // شذوذ إذا انخفضت القيمة أكثر من 1.5 انحراف معياري
-            return (prev - last) > 1.5 * std;
+            // شذوذ إذا انخفضت القيمة أكثر من 2 انحراف معياري
+            return (prev - last) > 2 * std;
         }
 
         function predictFailure(subscriber) {
@@ -315,33 +311,33 @@
             const distanceToCritical = Math.max(0, CRITICAL_THRESHOLD - lastRx);
             const anomaly = detectTemporalAnomaly(subscriber.history);
 
-            let riskScore = Math.min(100, Math.abs(slope) * 80 + distanceToCritical * 5);
-            // إذا كان هناك شذوذ، نرفع الخطورة
+            let riskScore = Math.min(100, Math.abs(slope) * 60 + distanceToCritical * 5);
             if (anomaly) {
-                riskScore = Math.min(100, riskScore + 20);
+                riskScore = Math.min(100, riskScore + 10);
             }
+
+            // تحسين معيار الخطر: نعتبره خطرًا إذا كان معدل التدهور > 0.35 أو متوقع خلال 4 أشهر
+            const warning = (Math.abs(slope) > 0.35) || (monthsToCritical <= 4 && monthsToCritical >= 0);
 
             return {
                 slope: slope,
                 predictedMonths: monthsToCritical,
                 riskScore: riskScore,
-                warning: false,
+                warning: warning,
                 anomaly: anomaly
             };
         }
 
         function classifyRisk(pred) {
             const score = pred.riskScore;
-            // نستخدم warning كشرط أساسي
-            if (pred.warning || pred.anomaly) {
+            // نستخدم warning كشرط أساسي للخطر/الحرج
+            if (pred.warning) {
                 if (score >= 80 || (pred.predictedMonths !== Infinity && pred.predictedMonths <= 2)) {
                     return 'حرج';
                 } else {
                     return 'خطر';
                 }
-            } else if (score >= 60 || (pred.predictedMonths !== Infinity && pred.predictedMonths <= 4)) {
-                return 'خطر';
-            } else if (score >= 30) {
+            } else if (score >= 60) {
                 return 'مراقبة';
             } else {
                 return 'مستقر';
