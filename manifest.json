@@ -1,0 +1,19 @@
+{
+  "name": "AT-FiberPredict - Predictive FTTH",
+  "short_name": "FiberPredict",
+  "description": "محرك التنبؤ الوقائي لأعطال FTTH/GPON",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f1f5f9",
+  "theme_color": "#1e3a8a",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>",
+      "sizes": "100x100",
+      "type": "image/svg+xml"
+    }
+  ]
+}
