@@ -7,6 +7,8 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#f0f9ff" />
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
             --bg-base: #f4faff;
@@ -32,10 +34,11 @@
             font-family: 'Tajawal', sans-serif;
             background-color: var(--bg-base);
             background-image: 
-                radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.9) 0%, transparent 30%),
-                radial-gradient(circle at 85% 70%, rgba(224, 247, 250, 0.8) 0%, transparent 35%),
-                radial-gradient(circle at 50% 50%, rgba(179, 229, 252, 0.25) 0%, transparent 60%),
-                repeating-radial-gradient(circle at 30px 30px, rgba(179, 229, 252, 0.4) 0px, rgba(179, 229, 252, 0.4) 1px, transparent 1px, transparent 24px);
+                radial-gradient(circle at 10% 20%, rgba(255,255,255,0.9) 0%, transparent 35%),
+                radial-gradient(circle at 90% 80%, rgba(224,247,250,0.8) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(179,229,252,0.15) 0%, transparent 70%),
+                url("data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3CradialGradient id='g' cx='30%25' cy='30%25' r='60%25'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.95'/%3E%3Cstop offset='50%25' stop-color='%23e0f7fa' stop-opacity='0.75'/%3E%3Cstop offset='100%25' stop-color='%23b3e5fc' stop-opacity='0.35'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='24' cy='24' r='18' fill='url(%23g)' stroke='%23ffffff' stroke-opacity='0.65' stroke-width='0.8'/%3E%3Ccircle cx='24' cy='24' r='10' fill='%23ffffff' fill-opacity='0.35'/%3E%3Ccircle cx='18' cy='18' r='4' fill='%23ffffff' fill-opacity='0.9'/%3E%3C/svg%3E");
+            background-size: 48px 48px;
             color: var(--text-primary);
             padding: 20px;
             min-height: 100vh;
@@ -48,10 +51,7 @@
             letter-spacing: 1px;
             text-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
-        .app-header p {
-            color: var(--text-secondary);
-            font-size: 18px;
-        }
+        .app-header p { color: var(--text-secondary); font-size: 18px; }
         .language-selector { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
         .lang-btn {
             background-color: rgba(255, 255, 255, 0.6);
@@ -67,19 +67,9 @@
             text-transform: uppercase;
             box-shadow: 0 2px 6px rgba(0,0,0,0.03);
         }
-        .lang-btn:hover { 
-            background-color: var(--primary-cyan-light); 
-            border-color: var(--primary-cyan); 
-            color: #006064; 
-            box-shadow: 0 0 12px rgba(0, 172, 193, 0.3); 
-        }
-        .lang-btn.active { 
-            background-color: var(--primary-cyan); 
-            color: white; 
-            border-color: var(--primary-cyan); 
-            box-shadow: 0 0 16px rgba(0, 172, 193, 0.5); 
-        }
-        .container { max-width: 1100px; margin: 0 auto; }
+        .lang-btn:hover { background-color: var(--primary-cyan-light); border-color: var(--primary-cyan); color: #006064; box-shadow: 0 0 12px rgba(0, 172, 193, 0.3); }
+        .lang-btn.active { background-color: var(--primary-cyan); color: white; border-color: var(--primary-cyan); box-shadow: 0 0 16px rgba(0, 172, 193, 0.5); }
+        .container { max-width: 1200px; margin: 0 auto; }
         .card {
             background: var(--glass-bg);
             backdrop-filter: var(--glass-blur);
@@ -91,9 +81,7 @@
             margin-bottom: 20px;
             transition: box-shadow 0.3s ease;
         }
-        .card:hover {
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-        }
+        .card:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12); }
         .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
         .btn {
             background-color: rgba(255, 255, 255, 0.7);
@@ -112,46 +100,13 @@
             gap: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
-        .btn:hover {
-            background-color: var(--primary-cyan-light);
-            border-color: var(--primary-cyan);
-            color: #006064;
-            box-shadow: 0 0 18px rgba(0, 172, 193, 0.35);
-            transform: translateY(-2px);
-        }
-        .btn-outline { 
-            background-color: rgba(255, 255, 255, 0.5); 
-            color: #6a1b9a; 
-            border-color: #e1bee7; 
-        }
-        .btn-outline:hover { 
-            background-color: var(--primary-purple-light); 
-            border-color: var(--primary-purple); 
-            color: #4a148c; 
-            box-shadow: 0 0 18px rgba(142, 36, 170, 0.3); 
-        }
-        .btn-success { 
-            background-color: rgba(255, 255, 255, 0.5); 
-            color: #1b5e20; 
-            border-color: #c8e6c9; 
-        }
-        .btn-success:hover { 
-            background-color: var(--primary-green-light); 
-            border-color: var(--primary-green); 
-            color: #1b5e20; 
-            box-shadow: 0 0 18px rgba(67, 160, 71, 0.3); 
-        }
-        .btn-warning { 
-            background-color: rgba(255, 255, 255, 0.5); 
-            color: #e65100; 
-            border-color: #ffe0b2; 
-        }
-        .btn-warning:hover { 
-            background-color: var(--primary-orange-light); 
-            border-color: var(--primary-orange); 
-            color: #bf360c; 
-            box-shadow: 0 0 18px rgba(251, 140, 0, 0.3); 
-        }
+        .btn:hover { background-color: var(--primary-cyan-light); border-color: var(--primary-cyan); color: #006064; box-shadow: 0 0 18px rgba(0, 172, 193, 0.35); transform: translateY(-2px); }
+        .btn-outline { background-color: rgba(255, 255, 255, 0.5); color: #6a1b9a; border-color: #e1bee7; }
+        .btn-outline:hover { background-color: var(--primary-purple-light); border-color: var(--primary-purple); color: #4a148c; box-shadow: 0 0 18px rgba(142, 36, 170, 0.3); }
+        .btn-success { background-color: rgba(255, 255, 255, 0.5); color: #1b5e20; border-color: #c8e6c9; }
+        .btn-success:hover { background-color: var(--primary-green-light); border-color: var(--primary-green); color: #1b5e20; box-shadow: 0 0 18px rgba(67, 160, 71, 0.3); }
+        .btn-warning { background-color: rgba(255, 255, 255, 0.5); color: #e65100; border-color: #ffe0b2; }
+        .btn-warning:hover { background-color: var(--primary-orange-light); border-color: var(--primary-orange); color: #bf360c; box-shadow: 0 0 18px rgba(251, 140, 0, 0.3); }
         .file-label {
             background-color: rgba(255, 255, 255, 0.5);
             color: #e65100;
@@ -167,12 +122,7 @@
             transition: all 0.3s ease;
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
-        .file-label:hover { 
-            background-color: var(--primary-orange-light); 
-            border-color: var(--primary-orange); 
-            color: #bf360c; 
-            box-shadow: 0 0 18px rgba(251, 140, 0, 0.3); 
-        }
+        .file-label:hover { background-color: var(--primary-orange-light); border-color: var(--primary-orange); color: #bf360c; box-shadow: 0 0 18px rgba(251, 140, 0, 0.3); }
         input[type="file"] { display: none; }
         .seed-box { text-align: center; margin-bottom: 15px; }
         .seed-box input {
@@ -197,17 +147,8 @@
             transition: all 0.3s ease;
             box-shadow: 0 2px 6px rgba(0,0,0,0.03);
         }
-        .metric-card:hover { 
-            border-color: var(--primary-cyan); 
-            box-shadow: 0 0 20px rgba(0, 172, 193, 0.2); 
-            transform: scale(1.02); 
-        }
-        .metric-card .value { 
-            font-size: 26px; 
-            font-weight: 800; 
-            color: #006064; 
-            text-shadow: 0 0 6px rgba(0, 172, 193, 0.2);
-        }
+        .metric-card:hover { border-color: var(--primary-cyan); box-shadow: 0 0 20px rgba(0, 172, 193, 0.2); transform: scale(1.02); }
+        .metric-card .value { font-size: 26px; font-weight: 800; color: #006064; text-shadow: 0 0 6px rgba(0, 172, 193, 0.2); }
         .metric-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
         table {
             width: 100%;
@@ -223,47 +164,25 @@
             font-size: 14px;
             border-bottom: 1px solid rgba(0, 0, 0, 0.05);
         }
-        th {
-            background-color: #e0f7fa;
-            color: #006064;
-            font-weight: 700;
-        }
+        th { background-color: #e0f7fa; color: #006064; font-weight: 700; }
         tr:hover td { background-color: rgba(224, 247, 250, 0.4); }
         .alert { background-color: #ffebee; color: #b71c1c; padding: 6px; border-radius: 6px; font-weight: 700; }
         .safe { background-color: #e8f5e9; color: #1b5e20; padding: 6px; border-radius: 6px; }
         .warn { background-color: #fff3e0; color: #e65100; padding: 6px; border-radius: 6px; font-weight: 700; }
         .monitor { background-color: #e3f2fd; color: #0d47a1; padding: 6px; border-radius: 6px; font-weight: 700; }
         .critical { background-color: #fce4ec; color: #880e4f; padding: 6px; border-radius: 6px; font-weight: 700; }
-        .survival-box {
-            background: #e0f7fa;
-            border-radius: 6px;
-            padding: 4px;
-            font-size: 12px;
-            color: #006064;
-        }
-        .chart-container {
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.9);
-            border-radius: 12px;
-            padding: 10px;
-            margin-top: 15px;
-        }
-        canvas { background: transparent; }
-        .pon-summary {
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 10px;
-            padding: 12px;
-            font-size: 14px;
-            line-height: 1.6;
-            color: var(--text-primary);
-        }
+        .survival-box { background: #e0f7fa; border-radius: 6px; padding: 4px; font-size: 12px; color: #006064; }
+        .chart-container { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 12px; padding: 10px; margin-top: 15px; }
+        canvas { background: transparent; display: block; max-width: 100%; }
+        .map-container { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 12px; padding: 5px; margin-top: 15px; height: 350px; }
+        .pon-summary { background: rgba(255, 255, 255, 0.6); border-radius: 10px; padding: 12px; font-size: 14px; line-height: 1.6; color: var(--text-primary); }
         .print-header { display: none; }
         @media print {
             body { background: white; color: black; }
             .card { box-shadow: none; border: 1px solid #ddd; background: white; backdrop-filter: none; }
             .no-print { display: none; }
             .print-header { display: block; text-align: center; margin-bottom: 20px; color: black; }
-            .metric-card, .btn, .lang-btn, table, .survival-box, .pon-summary, .chart-container { background: white; color: black; border-color: #ddd; }
+            .metric-card, .btn, .lang-btn, table, .survival-box, .pon-summary, .chart-container, .map-container { background: white; color: black; border-color: #ddd; }
             .metric-card .value { color: #1e3a8a; text-shadow: none; }
             th { background: #1e3a8a; color: white; text-shadow: none; }
             .alert { background: #fee2e2; color: #b91c1c; }
@@ -328,6 +247,14 @@
                 </table>
             </div>
 
+            <h3>📍 GIS Map - Predicted Fault Locations</h3>
+            <div id="gisMap" class="map-container"></div>
+
+            <h3>📏 Longitudinal Path View</h3>
+            <div class="chart-container">
+                <canvas id="longitudinalChart" width="700" height="200"></canvas>
+            </div>
+
             <h3 data-i18n="signal_chart_title">📈 Signal Degradation Curves</h3>
             <div class="chart-container">
                 <canvas id="signalChart" width="700" height="300"></canvas>
@@ -348,6 +275,8 @@
         </div>
     </div>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // ==================== CONSTANTS ====================
         const CRITICAL_THRESHOLD = -28.0;
@@ -355,6 +284,7 @@
         const MONTHS_FUTURE = 3;
         const NUMBER_OF_SUBSCRIBERS = 200;
         const NUMBER_OF_PON_GROUPS = 10;
+        let gisMapInstance = null;
 
         // ==================== i18n ====================
         const translations = {
@@ -589,6 +519,16 @@
             while (ponGroupsWithSplitterIssue.size < numSplitterIssues) {
                 ponGroupsWithSplitterIssue.add(Math.floor(rand() * NUMBER_OF_PON_GROUPS) + 1);
             }
+
+            // مواقع واقعية لبعض المراكز في الجزائر (خطوط عرض/طول)
+            const cityCoords = [
+                [33.6831, 1.0193],  // البيض
+                [36.7525, 3.0420],  // الجزائر
+                [35.6911, -0.6416], // وهران
+                [36.3650, 6.6147],  // قسنطينة
+                [36.9000, 7.7666]   // عنابة
+            ];
+
             for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
                 const groupId = ((i - 1) % NUMBER_OF_PON_GROUPS) + 1;
                 const groupHasIssue = ponGroupsWithSplitterIssue.has(groupId);
@@ -604,6 +544,24 @@
                     if (rand() < 0.15) { faultType = 'CONTAMINATION'; degradationRate = 0.25 + rand() * 0.25; }
                     else { faultType = 'STABLE'; degradationRate = rand() * 0.15; }
                 }
+
+                // بيانات جغرافية محاكاة
+                const city = cityCoords[Math.floor(rand() * cityCoords.length)];
+                const oltLat = city[0] + (rand() - 0.5) * 0.02;
+                const oltLng = city[1] + (rand() - 0.5) * 0.02;
+                const onuLat = oltLat + (rand() - 0.5) * 0.06;
+                const onuLng = oltLng + (rand() - 0.5) * 0.06;
+                const fiberLengthKm = 2 + rand() * 8; // 2 إلى 10 كم
+                const helixFactor = 1.02 + rand() * 0.06; // 1.02 إلى 1.08
+
+                // موقع العطل الفعلي (نسبة مئوية على طول الألياف) - لقياس الدقة
+                let actualFaultPositionPct;
+                if (faultType === 'BREAK') actualFaultPositionPct = 0.9 + rand() * 0.1; // قرب النهاية
+                else if (faultType === 'MACROBEND') actualFaultPositionPct = 0.3 + rand() * 0.5; // في المنتصف غالباً
+                else if (faultType === 'SPLICE') actualFaultPositionPct = rand() * 0.8;
+                else if (faultType === 'CONTAMINATION') actualFaultPositionPct = 0.85 + rand() * 0.15; // عند الموصلات
+                else actualFaultPositionPct = rand();
+
                 const history = [];
                 let current = rx;
                 const seasonalPattern = [0.05, -0.03, 0.02, -0.05, 0.04, -0.02, 0.03, -0.04];
@@ -626,7 +584,21 @@
                     const futureRx = current + futureNoise + futureSeasonal;
                     if (futureRx <= CRITICAL_THRESHOLD) { futureFailure = true; break; }
                 }
-                subscribers.push({ id: i, groupId, history, actualRx: current, actualFailure: futureFailure, degradationRate, faultType });
+
+                subscribers.push({
+                    id: i,
+                    groupId,
+                    history,
+                    actualRx: current,
+                    actualFailure: futureFailure,
+                    degradationRate,
+                    faultType,
+                    fiberLengthKm,
+                    helixFactor,
+                    oltCoords: [oltLat, oltLng],
+                    onuCoords: [onuLat, onuLng],
+                    actualFaultPositionPct
+                });
             }
             return subscribers;
         }
@@ -663,7 +635,20 @@
                 const history = [];
                 for (let m = 1; m <= MONTHS_HISTORY; m++) history.push(parseFloat(cols[headers.indexOf('month_' + m)]));
                 const actualFailure = parseInt(cols[headers.indexOf('actual_failure')]) === 1;
-                subscribers.push({ id, groupId: 'غير محدد', history, actualRx: history[history.length-1], actualFailure, degradationRate: 0, faultType: 'غير محدد' });
+                subscribers.push({
+                    id,
+                    groupId: 'غير محدد',
+                    history,
+                    actualRx: history[history.length-1],
+                    actualFailure,
+                    degradationRate: 0,
+                    faultType: 'غير محدد',
+                    fiberLengthKm: 5,
+                    helixFactor: 1.04,
+                    oltCoords: [33.6831, 1.0193],
+                    onuCoords: [33.7120, 1.0450],
+                    actualFaultPositionPct: 0.5
+                });
             }
             subscribers.forEach(sub => {
                 const first = sub.history[0], last = sub.history[sub.history.length-1];
@@ -773,7 +758,32 @@
                 const predictedRx = intercept + slope * (MONTHS_HISTORY + m);
                 survivalProbabilities.push(survivalProbability(predictedRx).toFixed(2));
             }
-            return { slope, predictedMonths: monthsToCritical, riskScore, warning, anomaly, confidence, survivalProbabilities };
+
+            // ==== التنبؤ المكاني ====
+            // الموقع المتوقع على طول الألياف بنسبة مئوية
+            let predictedFaultPct;
+            if (faultType === 'BREAK') predictedFaultPct = 0.88 + Math.random() * 0.1;
+            else if (faultType === 'MACROBEND') predictedFaultPct = 0.35 + Math.random() * 0.5;
+            else if (faultType === 'SPLICE') predictedFaultPct = Math.random() * 0.8;
+            else if (faultType === 'CONTAMINATION') predictedFaultPct = 0.85 + Math.random() * 0.15;
+            else predictedFaultPct = Math.random();
+
+            // المسافات المتوقعة
+            const predictedFiberKm = predictedFaultPct * subscriber.fiberLengthKm;
+            const predictedCableKm = predictedFiberKm / subscriber.helixFactor;
+
+            return {
+                slope,
+                predictedMonths: monthsToCritical,
+                riskScore,
+                warning,
+                anomaly,
+                confidence,
+                survivalProbabilities,
+                predictedFaultPct,
+                predictedFiberKm,
+                predictedCableKm
+            };
         }
 
         function classifyRisk(pred) {
@@ -828,6 +838,63 @@
                 auc += (x2-x1)*(y1+y2)/2;
             }
             return { points, auc };
+        }
+
+        // ==================== GIS ====================
+        function renderGISMap(subscribers, topIndices) {
+            const container = document.getElementById('gisMap');
+            if (!container || typeof L === 'undefined') {
+                container.innerHTML = '<div class="info">Leaflet غير متاحة، سيتم استخدام المخطط الطولي فقط.</div>';
+                return;
+            }
+            if (gisMapInstance) { gisMapInstance.remove(); }
+            gisMapInstance = L.map(container).setView([33.6831, 1.0193], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(gisMapInstance);
+
+            topIndices.forEach(idx => {
+                const sub = subscribers[idx];
+                const pred = window.lastResults.predictions[idx];
+                const faultLat = sub.oltCoords[0] + pred.predictedFaultPct * (sub.onuCoords[0] - sub.oltCoords[0]);
+                const faultLng = sub.oltCoords[1] + pred.predictedFaultPct * (sub.onuCoords[1] - sub.oltCoords[1]);
+                const faultCoords = [faultLat, faultLng];
+
+                L.polyline([sub.oltCoords, sub.onuCoords], {color: '#00acc1', weight: 2, dashArray: '4 4'}).addTo(gisMapInstance);
+                L.marker(sub.oltCoords).addTo(gisMapInstance).bindPopup('OLT').openPopup();
+                L.circleMarker(faultCoords, {
+                    radius: 6,
+                    color: '#d81b60',
+                    fillColor: '#f48fb1',
+                    fillOpacity: 0.9
+                }).addTo(gisMapInstance).bindPopup(`Sub ${sub.id}: Predicted fault`);
+            });
+        }
+
+        function renderLongitudinalChart(subscribers, topIndices) {
+            const canvas = document.getElementById('longitudinalChart');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0,0,W,H);
+            const padding = 30;
+            const lineY = H/2;
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(padding, lineY); ctx.lineTo(W-padding, lineY); ctx.stroke();
+            ctx.fillStyle = '#0f172a'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'center';
+            ctx.fillText('OLT', padding, lineY - 10);
+            ctx.fillText('ONU', W-padding, lineY - 10);
+
+            topIndices.forEach(idx => {
+                const sub = subscribers[idx];
+                const pred = window.lastResults.predictions[idx];
+                const x = padding + pred.predictedFaultPct * (W - 2*padding);
+                ctx.fillStyle = '#d81b60';
+                ctx.beginPath(); ctx.arc(x, lineY, 5, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#0f172a'; ctx.font = '9px Segoe UI'; ctx.textAlign = 'center';
+                ctx.fillText('Sub '+sub.id, x, lineY + 20);
+            });
         }
 
         // ==================== RENDER ====================
@@ -914,18 +981,18 @@
 
             drawSignalChartManual(subscribers, top5);
             drawROCChartManual(roc.points, roc.auc);
+            renderGISMap(subscribers, top5);
+            renderLongitudinalChart(subscribers, top5);
             document.getElementById('results').style.display = 'block';
         }
 
-        // ==================== CHARTS (Light theme colors) ====================
+        // ==================== CHARTS ====================
         function drawSignalChartManual(subscribers, indices) {
             const canvas = document.getElementById('signalChart');
             const ctx = canvas.getContext('2d');
             const W = canvas.width, H = canvas.height;
             ctx.clearRect(0,0,W,H);
             const padding = 50, chartW = W-padding*2, chartH = H-padding*2;
-
-            // Grid
             ctx.strokeStyle = 'rgba(0,0,0,0.1)';
             ctx.lineWidth = 0.5;
             for (let x = padding; x <= W-padding; x += 20) {
@@ -934,15 +1001,12 @@
             for (let y = padding; y <= H-padding; y += 20) {
                 ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(W-padding, y); ctx.stroke();
             }
-
-            // Axes
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,H-padding); ctx.lineTo(W-padding,H-padding); ctx.stroke();
             ctx.fillStyle = '#0f172a'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'center';
             ctx.fillText(t('months_unit'), W/2, H-10);
             ctx.save(); ctx.translate(20,H/2); ctx.rotate(-Math.PI/2); ctx.fillText('Rx Power',0,0); ctx.restore();
-
             const allValues = indices.flatMap(i => subscribers[i].history);
             const maxVal = Math.max(...allValues)+1, minVal = Math.min(...allValues)-1;
             const lineColors = ['#00acc1', '#8e24aa', '#43a047', '#fb8c00', '#d81b60'];
@@ -961,8 +1025,6 @@
                 ctx.stroke();
                 ctx.shadowBlur = 0;
             });
-
-            // Critical threshold line
             const yCrit = padding + ((maxVal-CRITICAL_THRESHOLD)/(maxVal-minVal))*chartH;
             ctx.strokeStyle = '#ef4444';
             ctx.setLineDash([6,4]);
@@ -982,7 +1044,6 @@
             const W = canvas.width, H = canvas.height;
             ctx.clearRect(0,0,W,H);
             const padding = 50, chartW = W-padding*2, chartH = H-padding*2;
-
             ctx.strokeStyle = 'rgba(0,0,0,0.1)';
             ctx.lineWidth = 0.5;
             for (let x = padding; x <= W-padding; x += 20) {
@@ -991,20 +1052,17 @@
             for (let y = padding; y <= H-padding; y += 20) {
                 ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(W-padding, y); ctx.stroke();
             }
-
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,H-padding); ctx.lineTo(W-padding,H-padding); ctx.stroke();
             ctx.fillStyle = '#0f172a'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'center';
             ctx.fillText('False Positive Rate', W/2, H-10);
             ctx.save(); ctx.translate(20,H/2); ctx.rotate(-Math.PI/2); ctx.fillText('True Positive Rate',0,0); ctx.restore();
-
             ctx.strokeStyle = '#8e24aa';
             ctx.setLineDash([4,4]);
             ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(padding,H-padding); ctx.lineTo(W-padding,padding); ctx.stroke();
             ctx.setLineDash([]);
-
             ctx.strokeStyle = '#00acc1';
             ctx.lineWidth = 2.5;
             ctx.shadowColor = '#00acc1';
@@ -1017,7 +1075,6 @@
             });
             ctx.stroke();
             ctx.shadowBlur = 0;
-
             ctx.fillStyle = '#00acc1';
             ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
             ctx.fillText('AUC = '+auc.toFixed(3), W/2, 30);
@@ -1054,12 +1111,12 @@
         function exportCSV() {
             if (!window.lastResults) { alert('Please run analysis first'); return; }
             const { subscribers, predictions, categories } = window.lastResults;
-            let csv = 'subscriber,group,last_rx,degradation,cause,risk_score,confidence,category,actual_state,survival\n';
+            let csv = 'subscriber,group,last_rx,degradation,cause,risk_score,confidence,category,actual_state,survival,predicted_km,cable_km\n';
             subscribers.forEach((sub,i) => {
                 const pred = predictions[i], cat = categories[i];
                 const actual = sub.actualFailure ? 'failure' : 'ok';
                 const survival = pred.survivalProbabilities.join('|');
-                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${pred.confidence}%,${cat},${actual},${survival}\n`;
+                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${pred.confidence}%,${cat},${actual},${survival},${pred.predictedFiberKm.toFixed(2)},${pred.predictedCableKm.toFixed(2)}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
