@@ -431,6 +431,7 @@
                     <th>${t('actual_state')}</th>
                     <th>${t('reason')}</th>
                     <th>${t('survival')}</th>
+                    <th>خطأ المسافة (م)</th>
                 </tr>
             `;
         }
@@ -460,7 +461,6 @@
                 ponGroupsWithSplitterIssue.add(Math.floor(rand() * NUMBER_OF_PON_GROUPS) + 1);
             }
 
-            // مواقع واقعية لبعض المراكز في الجزائر
             const cityCoords = [
                 [33.6831, 1.0193],
                 [36.7525, 3.0420],
@@ -708,6 +708,11 @@
             const predictedFiberKm = predictedFaultPct * subscriber.fiberLengthKm;
             const predictedCableKm = predictedFiberKm / subscriber.helixFactor;
 
+            // خطأ المسافة (متر)
+            const actualFiberKm = subscriber.actualFaultPositionPct * subscriber.fiberLengthKm;
+            const errorKm = Math.abs(predictedFiberKm - actualFiberKm);
+            const errorMeters = errorKm * 1000;
+
             return {
                 slope,
                 predictedMonths: monthsToCritical,
@@ -718,7 +723,8 @@
                 survivalProbabilities,
                 predictedFaultPct,
                 predictedFiberKm,
-                predictedCableKm
+                predictedCableKm,
+                errorMeters
             };
         }
 
@@ -844,6 +850,16 @@
             const roc = computeROC(subscribers, predictions);
             window.lastResults = { subscribers, predictions, categories, metrics, roc };
 
+            // متوسط الخطأ المكاني للمشتركين الخطرين فقط
+            let totalError = 0, countError = 0;
+            subscribers.forEach((sub, i) => {
+                if (isPositiveRisk(categories[i]) && sub.actualFailure) {
+                    totalError += predictions[i].errorMeters;
+                    countError++;
+                }
+            });
+            const avgErrorMeters = countError > 0 ? totalError / countError : 0;
+
             document.getElementById('metricsBox').innerHTML = `
                 <div class="metric-card"><div class="value">${subscribers.length}</div><div class="label">${t('subscriber')}</div></div>
                 <div class="metric-card"><div class="value">${metrics.tp + metrics.fn}</div><div class="label">${t('actual_state')}</div></div>
@@ -852,6 +868,7 @@
                 <div class="metric-card"><div class="value">${(metrics.f1*100).toFixed(1)}%</div><div class="label">F1-Score</div></div>
                 <div class="metric-card"><div class="value">${(metrics.accuracy*100).toFixed(1)}%</div><div class="label">Accuracy</div></div>
                 <div class="metric-card"><div class="value">${(roc.auc*100).toFixed(1)}%</div><div class="label">AUC</div></div>
+                <div class="metric-card"><div class="value">${avgErrorMeters.toFixed(1)}</div><div class="label">متوسط الخطأ المكاني (م)</div></div>
             `;
 
             const source = window.dataSource === 'csv' ? t('source_csv') : t('source_sim');
@@ -912,7 +929,7 @@
                 } else if (cat === 'مراقبة') reason = t('monitor');
                 else reason = t('stable');
                 const survivalText = pred.survivalProbabilities.map((p,idx) => `M${idx+1}: ${p}`).join(' | ');
-                allTbody.innerHTML += `<tr><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td><td>${reason}</td><td class="survival-box">${survivalText}</td></tr>`;
+                allTbody.innerHTML += `<tr><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td><td>${reason}</td><td class="survival-box">${survivalText}</td><td>${pred.errorMeters.toFixed(1)}</td></tr>`;
             });
 
             drawSignalChartManual(subscribers, top5);
@@ -1047,12 +1064,12 @@
         function exportCSV() {
             if (!window.lastResults) { alert('Please run analysis first'); return; }
             const { subscribers, predictions, categories } = window.lastResults;
-            let csv = 'subscriber,group,last_rx,degradation,cause,risk_score,confidence,category,actual_state,survival,predicted_km,cable_km\n';
+            let csv = 'subscriber,group,last_rx,degradation,cause,risk_score,confidence,category,actual_state,survival,predicted_km,cable_km,error_meters\n';
             subscribers.forEach((sub,i) => {
                 const pred = predictions[i], cat = categories[i];
                 const actual = sub.actualFailure ? 'failure' : 'ok';
                 const survival = pred.survivalProbabilities.join('|');
-                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${pred.confidence}%,${cat},${actual},${survival},${pred.predictedFiberKm.toFixed(2)},${pred.predictedCableKm.toFixed(2)}\n`;
+                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${pred.confidence}%,${cat},${actual},${survival},${pred.predictedFiberKm.toFixed(2)},${pred.predictedCableKm.toFixed(2)},${pred.errorMeters.toFixed(1)}\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
