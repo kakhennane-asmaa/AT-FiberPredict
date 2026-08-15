@@ -7,7 +7,6 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#f0f9ff" />
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
@@ -44,61 +43,32 @@
             min-height: 100vh;
         }
         .app-header { text-align: center; margin-bottom: 30px; }
-        .app-header h1 {
-            color: #0f172a;
-            font-size: 36px;
-            font-weight: 800;
-            letter-spacing: 1px;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        }
+        .app-header h1 { color: #0f172a; font-size: 36px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); }
         .app-header p { color: var(--text-secondary); font-size: 18px; }
         .language-selector { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
         .lang-btn {
-            background-color: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.9);
-            color: var(--text-primary);
-            border-radius: 8px;
-            padding: 8px 18px;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
+            background-color: rgba(255, 255, 255, 0.6); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.9); color: var(--text-primary);
+            border-radius: 8px; padding: 8px 18px; font-size: 14px; font-weight: 700;
+            cursor: pointer; transition: all 0.3s ease; text-transform: uppercase;
             box-shadow: 0 2px 6px rgba(0,0,0,0.03);
         }
         .lang-btn:hover { background-color: var(--primary-cyan-light); border-color: var(--primary-cyan); color: #006064; box-shadow: 0 0 12px rgba(0, 172, 193, 0.3); }
         .lang-btn.active { background-color: var(--primary-cyan); color: white; border-color: var(--primary-cyan); box-shadow: 0 0 16px rgba(0, 172, 193, 0.5); }
         .container { max-width: 1200px; margin: 0 auto; }
         .card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            box-shadow: var(--card-shadow);
-            padding: 20px;
-            margin-bottom: 20px;
-            transition: box-shadow 0.3s ease;
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border); border-radius: 16px; box-shadow: var(--card-shadow);
+            padding: 20px; margin-bottom: 20px; transition: box-shadow 0.3s ease;
         }
         .card:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12); }
         .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
         .btn {
-            background-color: rgba(255, 255, 255, 0.7);
-            color: var(--text-primary);
-            border: 1px solid rgba(255, 255, 255, 0.9);
-            border-radius: 12px;
-            padding: 12px 20px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            min-width: 140px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            background-color: rgba(255, 255, 255, 0.7); color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 12px;
+            padding: 12px 20px; font-size: 15px; font-weight: 700; cursor: pointer;
+            transition: all 0.3s ease; min-width: 140px; display: inline-flex;
+            align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
         .btn:hover { background-color: var(--primary-cyan-light); border-color: var(--primary-cyan); color: #006064; box-shadow: 0 0 18px rgba(0, 172, 193, 0.35); transform: translateY(-2px); }
         .btn-outline { background-color: rgba(255, 255, 255, 0.5); color: #6a1b9a; border-color: #e1bee7; }
@@ -108,62 +78,33 @@
         .btn-warning { background-color: rgba(255, 255, 255, 0.5); color: #e65100; border-color: #ffe0b2; }
         .btn-warning:hover { background-color: var(--primary-orange-light); border-color: var(--primary-orange); color: #bf360c; box-shadow: 0 0 18px rgba(251, 140, 0, 0.3); }
         .file-label {
-            background-color: rgba(255, 255, 255, 0.5);
-            color: #e65100;
-            border: 1px solid #ffe0b2;
-            border-radius: 12px;
-            padding: 12px 20px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            background-color: rgba(255, 255, 255, 0.5); color: #e65100; border: 1px solid #ffe0b2;
+            border-radius: 12px; padding: 12px 20px; font-size: 15px; font-weight: 700;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+            transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
         .file-label:hover { background-color: var(--primary-orange-light); border-color: var(--primary-orange); color: #bf360c; box-shadow: 0 0 18px rgba(251, 140, 0, 0.3); }
         input[type="file"] { display: none; }
         .seed-box { text-align: center; margin-bottom: 15px; }
         .seed-box input {
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.9);
-            background: rgba(255, 255, 255, 0.8);
-            color: var(--text-primary);
-            width: 90px;
-            text-align: center;
-            font-size: 16px;
-            font-weight: 700;
+            padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.8); color: var(--text-primary); width: 90px;
+            text-align: center; font-size: 16px; font-weight: 700;
         }
         .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 20px 0; }
         .metric-card {
-            background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.9);
-            border-radius: 10px;
-            padding: 15px;
-            text-align: center;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+            background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 10px;
+            padding: 15px; text-align: center; transition: all 0.3s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.03);
         }
         .metric-card:hover { border-color: var(--primary-cyan); box-shadow: 0 0 20px rgba(0, 172, 193, 0.2); transform: scale(1.02); }
         .metric-card .value { font-size: 26px; font-weight: 800; color: #006064; text-shadow: 0 0 6px rgba(0, 172, 193, 0.2); }
         .metric-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
         table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 8px;
-            overflow: hidden;
+            width: 100%; border-collapse: collapse; margin-top: 15px;
+            background: rgba(255, 255, 255, 0.6); border-radius: 8px; overflow: hidden;
         }
-        th, td {
-            padding: 10px;
-            text-align: center;
-            font-size: 14px;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        }
+        th, td { padding: 10px; text-align: center; font-size: 14px; border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
         th { background-color: #e0f7fa; color: #006064; font-weight: 700; }
         tr:hover td { background-color: rgba(224, 247, 250, 0.4); }
         .alert { background-color: #ffebee; color: #b71c1c; padding: 6px; border-radius: 6px; font-weight: 700; }
@@ -275,7 +216,6 @@
         </div>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // ==================== CONSTANTS ====================
@@ -520,13 +460,13 @@
                 ponGroupsWithSplitterIssue.add(Math.floor(rand() * NUMBER_OF_PON_GROUPS) + 1);
             }
 
-            // مواقع واقعية لبعض المراكز في الجزائر (خطوط عرض/طول)
+            // مواقع واقعية لبعض المراكز في الجزائر
             const cityCoords = [
-                [33.6831, 1.0193],  // البيض
-                [36.7525, 3.0420],  // الجزائر
-                [35.6911, -0.6416], // وهران
-                [36.3650, 6.6147],  // قسنطينة
-                [36.9000, 7.7666]   // عنابة
+                [33.6831, 1.0193],
+                [36.7525, 3.0420],
+                [35.6911, -0.6416],
+                [36.3650, 6.6147],
+                [36.9000, 7.7666]
             ];
 
             for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
@@ -545,21 +485,19 @@
                     else { faultType = 'STABLE'; degradationRate = rand() * 0.15; }
                 }
 
-                // بيانات جغرافية محاكاة
                 const city = cityCoords[Math.floor(rand() * cityCoords.length)];
                 const oltLat = city[0] + (rand() - 0.5) * 0.02;
                 const oltLng = city[1] + (rand() - 0.5) * 0.02;
                 const onuLat = oltLat + (rand() - 0.5) * 0.06;
                 const onuLng = oltLng + (rand() - 0.5) * 0.06;
-                const fiberLengthKm = 2 + rand() * 8; // 2 إلى 10 كم
-                const helixFactor = 1.02 + rand() * 0.06; // 1.02 إلى 1.08
+                const fiberLengthKm = 2 + rand() * 8;
+                const helixFactor = 1.02 + rand() * 0.06;
 
-                // موقع العطل الفعلي (نسبة مئوية على طول الألياف) - لقياس الدقة
                 let actualFaultPositionPct;
-                if (faultType === 'BREAK') actualFaultPositionPct = 0.9 + rand() * 0.1; // قرب النهاية
-                else if (faultType === 'MACROBEND') actualFaultPositionPct = 0.3 + rand() * 0.5; // في المنتصف غالباً
+                if (faultType === 'BREAK') actualFaultPositionPct = 0.9 + rand() * 0.1;
+                else if (faultType === 'MACROBEND') actualFaultPositionPct = 0.3 + rand() * 0.5;
                 else if (faultType === 'SPLICE') actualFaultPositionPct = rand() * 0.8;
-                else if (faultType === 'CONTAMINATION') actualFaultPositionPct = 0.85 + rand() * 0.15; // عند الموصلات
+                else if (faultType === 'CONTAMINATION') actualFaultPositionPct = 0.85 + rand() * 0.15;
                 else actualFaultPositionPct = rand();
 
                 const history = [];
@@ -760,15 +698,13 @@
             }
 
             // ==== التنبؤ المكاني ====
-            // الموقع المتوقع على طول الألياف بنسبة مئوية
             let predictedFaultPct;
-            if (faultType === 'BREAK') predictedFaultPct = 0.88 + Math.random() * 0.1;
-            else if (faultType === 'MACROBEND') predictedFaultPct = 0.35 + Math.random() * 0.5;
-            else if (faultType === 'SPLICE') predictedFaultPct = Math.random() * 0.8;
-            else if (faultType === 'CONTAMINATION') predictedFaultPct = 0.85 + Math.random() * 0.15;
-            else predictedFaultPct = Math.random();
+            if (subscriber.faultType === 'BREAK') predictedFaultPct = 0.90;
+            else if (subscriber.faultType === 'MACROBEND') predictedFaultPct = 0.45;
+            else if (subscriber.faultType === 'SPLICE') predictedFaultPct = 0.60;
+            else if (subscriber.faultType === 'CONTAMINATION') predictedFaultPct = 0.88;
+            else predictedFaultPct = 0.50;
 
-            // المسافات المتوقعة
             const predictedFiberKm = predictedFaultPct * subscriber.fiberLengthKm;
             const predictedCableKm = predictedFiberKm / subscriber.helixFactor;
 
@@ -862,7 +798,7 @@
                 const faultCoords = [faultLat, faultLng];
 
                 L.polyline([sub.oltCoords, sub.onuCoords], {color: '#00acc1', weight: 2, dashArray: '4 4'}).addTo(gisMapInstance);
-                L.marker(sub.oltCoords).addTo(gisMapInstance).bindPopup('OLT').openPopup();
+                L.marker(sub.oltCoords).addTo(gisMapInstance).bindPopup('OLT');
                 L.circleMarker(faultCoords, {
                     radius: 6,
                     color: '#d81b60',
