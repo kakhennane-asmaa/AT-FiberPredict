@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* نفس التصميم السابق بالكامل مع تحسينات طفيفة */
+        /* نفس التصميم السابق بالكامل */
         :root {
             --bg-base: #f4faff; --glass-bg: rgba(255,255,255,0.55);
             --glass-border: rgba(255,255,255,0.8); --glass-blur: blur(20px);
@@ -398,15 +398,7 @@
         }
 
         // ==================== SEEDED RANDOM ====================
-        function mulberry32(seed) {
-            let a = seed >>> 0;
-            return function() {
-                a |= 0; a = a + 0x6D2B79F5 | 0;
-                let t = Math.imul(a ^ a >>> 15, 1 | a);
-                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-                return ((t ^ t >>> 14) >>> 0) / 4294967296;
-            }
-        }
+        function mulberry32(seed) { let a = seed >>> 0; return function() { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; } }
 
         // ==================== SIMULATION ====================
         function generateSubscribers(rand) {
@@ -418,7 +410,6 @@
             const numSplitterIssues = Math.floor(NUMBER_OF_PON_GROUPS * 0.2);
             while (ponGroupsWithSplitterIssue.size < numSplitterIssues) ponGroupsWithSplitterIssue.add(Math.floor(rand() * NUMBER_OF_PON_GROUPS) + 1);
             const cityCoords = [[33.6831,1.0193],[36.7525,3.0420],[35.6911,-0.6416],[36.3650,6.6147],[36.9000,7.7666]];
-
             for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
                 const groupId = ((i - 1) % NUMBER_OF_PON_GROUPS) + 1;
                 const groupHasIssue = ponGroupsWithSplitterIssue.has(groupId);
@@ -434,7 +425,6 @@
                     if (rand() < 0.15) { faultType = 'CONTAMINATION'; degradationRate = 0.25 + rand() * 0.25; }
                     else { faultType = 'STABLE'; degradationRate = rand() * 0.15; }
                 }
-
                 const city = cityCoords[Math.floor(rand() * cityCoords.length)];
                 const oltLat = city[0] + (rand() - 0.5) * 0.02;
                 const oltLng = city[1] + (rand() - 0.5) * 0.02;
@@ -442,7 +432,6 @@
                 const onuLng = oltLng + (rand() - 0.5) * 0.06;
                 const fiberLengthKm = 2 + rand() * 8;
                 const helixFactor = 1.02 + rand() * 0.06;
-
                 const history = [];
                 let current = rx;
                 const seasonalPattern = [0.05,-0.03,0.02,-0.05,0.04,-0.02,0.03,-0.04];
@@ -465,46 +454,18 @@
                     const futureRx = current + futureNoise + futureSeasonal;
                     if (futureRx <= CRITICAL_THRESHOLD) { futureFailure = true; break; }
                 }
-
-                // حساب أنماط التدهور لتحديد الموقع الفعلي
                 const diffs = [];
                 for (let m = 1; m < history.length; m++) diffs.push(history[m-1] - history[m]);
                 const avgDrop = diffs.reduce((a,b) => a+b, 0) / (diffs.length || 1);
                 const stdDrop = Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / (diffs.length || 1));
                 const lastDrop = diffs.length > 0 ? diffs[diffs.length-1] : 0;
-
                 let actualFaultPositionPct;
-                if (lastDrop > 2.0) {
-                    // هبوط حاد في النهاية → قرب النهاية
-                    actualFaultPositionPct = 0.85 + rand() * 0.15;
-                } else if (stdDrop > 0.25) {
-                    // تذبذب → في المنتصف (لحامات/وصلات)
-                    actualFaultPositionPct = 0.35 + rand() * 0.3;
-                } else if (avgDrop > 0.4) {
-                    // تدهور سريع منتظم → الثلث الأخير
-                    actualFaultPositionPct = 0.6 + rand() * 0.3;
-                } else if (avgDrop > 0.15) {
-                    // تدهور بطيء → قرب الموصلات
-                    actualFaultPositionPct = 0.75 + rand() * 0.25;
-                } else {
-                    // مستقر → عشوائي
-                    actualFaultPositionPct = rand();
-                }
-
-                subscribers.push({
-                    id: i,
-                    groupId,
-                    history,
-                    actualRx: current,
-                    actualFailure: futureFailure,
-                    degradationRate,
-                    faultType,
-                    fiberLengthKm,
-                    helixFactor,
-                    oltCoords: [oltLat, oltLng],
-                    onuCoords: [onuLat, onuLng],
-                    actualFaultPositionPct
-                });
+                if (lastDrop > 2.0) actualFaultPositionPct = 0.85 + rand() * 0.15;
+                else if (stdDrop > 0.25) actualFaultPositionPct = 0.35 + rand() * 0.3;
+                else if (avgDrop > 0.4) actualFaultPositionPct = 0.6 + rand() * 0.3;
+                else if (avgDrop > 0.15) actualFaultPositionPct = 0.75 + rand() * 0.25;
+                else actualFaultPositionPct = rand();
+                subscribers.push({ id: i, groupId, history, actualRx: current, actualFailure: futureFailure, degradationRate, faultType, fiberLengthKm, helixFactor, oltCoords: [oltLat, oltLng], onuCoords: [onuLat, onuLng], actualFaultPositionPct });
             }
             return subscribers;
         }
@@ -528,7 +489,7 @@
             const lines = text.trim().split('\n');
             if (lines.length < 2) { alert('Empty file'); return; }
             const headers = lines[0].split(',').map(h => h.trim());
-            const required = ['subscriber_id','month_1','month_2','month_3','month_4','month_5','month_6','month_7','month_8','actual_failure'];
+            const required = ['subscriber_id','month_1','month_2','month_3','month_4','month_5','month_6','month_7','month_8','actual_failure','fiber_length_km','helix_factor','fault_position_pct'];
             const missing = required.filter(r => !headers.includes(r));
             if (missing.length > 0) { alert('Missing columns: ' + missing.join(', ')); return; }
             const subscribers = [];
@@ -539,7 +500,10 @@
                 const history = [];
                 for (let m = 1; m <= MONTHS_HISTORY; m++) history.push(parseFloat(cols[headers.indexOf('month_' + m)]));
                 const actualFailure = parseInt(cols[headers.indexOf('actual_failure')]) === 1;
-                subscribers.push({ id, groupId: 'غير محدد', history, actualRx: history[history.length-1], actualFailure, degradationRate: 0, faultType: 'غير محدد', fiberLengthKm: 5, helixFactor: 1.04, oltCoords: [33.6831,1.0193], onuCoords: [33.7120,1.0450], actualFaultPositionPct: 0.5 });
+                const fiberLengthKm = parseFloat(cols[headers.indexOf('fiber_length_km')]) || 5;
+                const helixFactor = parseFloat(cols[headers.indexOf('helix_factor')]) || 1.04;
+                const actualFaultPositionPct = parseFloat(cols[headers.indexOf('fault_position_pct')]) || 0.5;
+                subscribers.push({ id, groupId: 'غير محدد', history, actualRx: history[history.length-1], actualFailure, degradationRate: 0, faultType: 'غير محدد', fiberLengthKm, helixFactor, oltCoords: [33.6831,1.0193], onuCoords: [33.7120,1.0450], actualFaultPositionPct });
             }
             subscribers.forEach(sub => {
                 const first = sub.history[0], last = sub.history[sub.history.length-1];
@@ -639,7 +603,6 @@
                 survivalProbabilities.push(survivalProbability(predictedRx).toFixed(2));
             }
 
-            // ==== التنبؤ المكاني الديناميكي ====
             const diffs = [];
             for (let i = 1; i < subscriber.history.length; i++) diffs.push(subscriber.history[i-1] - subscriber.history[i]);
             const avgDrop = subscriber.degradationRate || 0;
@@ -647,17 +610,11 @@
             const lastDrop = diffs.length > 0 ? diffs[diffs.length - 1] : 0;
 
             let predictedFaultPct;
-            if (anomaly || lastDrop > 2.0) {
-                predictedFaultPct = 0.85;
-            } else if (stdDrop > 0.25) {
-                predictedFaultPct = 0.55;
-            } else if (Math.abs(slope) > 0.4) {
-                predictedFaultPct = 0.70;
-            } else if (Math.abs(slope) > 0.15) {
-                predictedFaultPct = 0.75;
-            } else {
-                predictedFaultPct = 0.85;
-            }
+            if (anomaly || lastDrop > 2.0) predictedFaultPct = 0.85;
+            else if (stdDrop > 0.25) predictedFaultPct = 0.55;
+            else if (Math.abs(slope) > 0.4) predictedFaultPct = 0.70;
+            else if (Math.abs(slope) > 0.15) predictedFaultPct = 0.75;
+            else predictedFaultPct = 0.85;
 
             const predictedFiberKm = predictedFaultPct * subscriber.fiberLengthKm;
             const predictedCableKm = predictedFiberKm / subscriber.helixFactor;
