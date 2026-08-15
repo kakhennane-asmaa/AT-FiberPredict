@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AT-FiberPredict v11.7</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: #f4faff;
+            color: #0f172a;
+            padding: 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1 { color: #1e3a8a; text-align: center; }
+        .card {
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.9);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+        }
+        button {
+            background: #1e3a8a;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 5px;
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 8px; border: 1px solid #cbd5e1; text-align: center; font-size: 14px; }
+        th { background: #e0f7fa; color: #006064; }
+        .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+        .metric-card { background: white; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        .metric-value { font-size: 24px; font-weight: 800; color: #006064; }
+        .metric-label { font-size: 13px; color: #334155; }
+        .map-container { height: 300px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h1>🧠 AT-FiberPredict v11.7</h1>
+    <div class="card">
+        <button onclick="runSimulation()">▶️ تشغيل المحاكاة</button>
+        <button onclick="loadEmbeddedCSV()">📥 بيانات المستودع (مدمجة)</button>
+        <button onclick="exportResults()">📥 تصدير CSV</button>
+        <label for="csvFileInput" style="background:#fb8c00; color:white; padding:10px 20px; border-radius:10px; font-weight:700; cursor:pointer;">
+            📂 تحميل CSV من الجهاز
+        </label>
+        <input type="file" id="csvFileInput" accept=".csv" onchange="handleFileUpload(event)" style="display:none;">
+        <div style="margin-top:10px;">
+            <label>البذرة: <input type="number" id="seedInput" value="42" style="width:80px; padding:5px;"></label>
+        </div>
+    </div>
+
+    <div id="results" class="card" style="display:none;">
+        <h2>📊 نتائج التحليل</h2>
+        <div class="metric-grid" id="metricsBox"></div>
+        <p id="summary" style="text-align:center; margin:10px 0;"></p>
+        <div class="metric-grid" id="categoryStats"></div>
+        <h3>أخطر 5 مشتركين</h3>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead id="top5Head"></thead>
+                <tbody id="topRiskTbody"></tbody>
+            </table>
+        </div>
+        <h3>📍 خريطة GIS</h3>
+        <div id="gisMap" class="map-container"></div>
+        <h3>📋 جميع المشتركين</h3>
+        <div style="max-height:400px; overflow-y:auto;">
+            <table>
+                <thead id="allSubsHead"></thead>
+                <tbody id="allSubscribersTbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const CRITICAL_THRESHOLD = -28.0;
+        const MONTHS_HISTORY = 8;
+        const NUMBER_OF_SUBSCRIBERS = 200;
+        const NUMBER_OF_PON_GROUPS = 10;
+        let gisMapInstance = null;
+        let currentLanguage = 'ar';
+
+        // ==================== i18n ====================
+        const translations = {
+            ar: {
+                subscriber: 'المشترك', group: 'المجموعة', last_rx: 'آخر Rx', degradation: 'التدهور',
+                predicted_month: 'الشهر المتوقع', cause: 'السبب المحتمل', risk_score: 'مؤشر الخطورة',
+                confidence: 'الثقة', category: 'التصنيف', actual_state: 'الحالة الفعلية', reason: 'سبب الخطورة',
+                survival: 'تحليل البقاء', stable: 'مستقر', monitor: 'مراقبة', danger: 'خطر', critical: 'حرج',
+                will_fail: '⚠️ سيتعطل', is_stable: '✅ مستقر', months_unit: 'شهر', more_than_year: 'أكثر من سنة',
+                fault_contamination: 'تلوث موصل', fault_macrobend: 'انحناء حاد', fault_break: 'كسر ليفي',
+                fault_splice: 'لحام رديء', fault_stable: 'مستقر', undefined: 'غير محدد',
+                summary_text: 'من بين {total} مشترك، تم تصنيف {risk} كحالات خطر/حرج. القيمة الفعلية كانت {actual} عطل حقيقي. الإنذارات الصحيحة: {tp}، الكاذبة: {fp}.',
+                source_sim: 'محاكاة افتراضية', source_csv: 'ملف CSV خارجي'
+            },
+            fr: {
+                subscriber: 'Abonné', group: 'Groupe', last_rx: 'Dernier Rx', degradation: 'Dégradation',
+                predicted_month: 'Mois prévu', cause: 'Cause probable', risk_score: 'Score de risque',
+                confidence: 'Confiance', category: 'Catégorie', actual_state: 'État réel', reason: 'Raison du risque',
+                survival: 'Analyse de survie', stable: 'Stable', monitor: 'Surveillance', danger: 'Danger', critical: 'Critique',
+                will_fail: '⚠️ Panne prévue', is_stable: '✅ Stable', months_unit: 'mois', more_than_year: 'Plus d\'un an',
+                fault_contamination: 'Contamination connecteur', fault_macrobend: 'Macrocourbure', fault_break: 'Rupture de fibre',
+                fault_splice: 'Épissure défectueuse', fault_stable: 'Stable', undefined: 'Indéfini',
+                summary_text: 'Parmi {total} abonnés, {risk} classés à risque. Réel: {actual} pannes. Alertes correctes: {tp}, fausses: {fp}.',
+                source_sim: 'Simulation', source_csv: 'Fichier CSV'
+            },
+            en: {
+                subscriber: 'Subscriber', group: 'Group', last_rx: 'Last Rx', degradation: 'Degradation',
+                predicted_month: 'Predicted Month', cause: 'Probable Cause', risk_score: 'Risk Score',
+                confidence: 'Confidence', category: 'Category', actual_state: 'Actual State', reason: 'Risk Reason',
+                survival: 'Survival Analysis', stable: 'Stable', monitor: 'Monitor', danger: 'Danger', critical: 'Critical',
+                will_fail: '⚠️ Will Fail', is_stable: '✅ Stable', months_unit: 'months', more_than_year: 'More than a year',
+                fault_contamination: 'Connector Contamination', fault_macrobend: 'Macrobend', fault_break: 'Fiber Break',
+                fault_splice: 'Bad Splice', fault_stable: 'Stable', undefined: 'Undefined',
+                summary_text: 'Out of {total} subscribers, {risk} classified as risk. Actual failures: {actual}. True alerts: {tp}, false: {fp}.',
+                source_sim: 'Simulation', source_csv: 'CSV File'
+            }
+        };
+
+        function t(key) { return translations[currentLanguage][key] || key; }
+
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            document.documentElement.lang = lang;
+            document.documentElement.dir = (lang === 'ar') ? 'rtl' : 'ltr';
+            if (window.lastResults) renderResults(window.lastResults);
+        }
+
+        function buildHeaders() {
+            document.getElementById('top5Head').innerHTML = `
+                <tr><th>${t('subscriber')}</th><th>${t('group')}</th><th>${t('last_rx')}</th><th>${t('degradation')}</th><th>${t('predicted_month')}</th><th>${t('cause')}</th><th>${t('risk_score')}</th><th>${t('confidence')}</th><th>${t('category')}</th><th>${t('actual_state')}</th></tr>`;
+            document.getElementById('allSubsHead').innerHTML = `
+                <tr><th>${t('subscriber')}</th><th>${t('group')}</th><th>${t('last_rx')}</th><th>${t('degradation')}</th><th>${t('cause')}</th><th>${t('risk_score')}</th><th>${t('confidence')}</th><th>${t('category')}</th><th>${t('actual_state')}</th><th>${t('reason')}</th><th>${t('survival')}</th><th>خطأ المسافة (م)</th><th>الموقع المتوقع</th></tr>`;
+        }
+
+        // ==================== Seeded Random ====================
+        function mulberry32(seed) { let a = seed >>> 0; return function() { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; } }
+
+        // ==================== Simulation ====================
+        function generateSubscribers(rand) {
+            const subscribers = [];
+            const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.20);
+            const failureIds = new Set();
+            while (failureIds.size < numFailures) failureIds.add(Math.floor(rand() * NUMBER_OF_SUBSCRIBERS) + 1);
+            const ponGroupsWithSplitterIssue = new Set();
+            const numSplitterIssues = Math.floor(NUMBER_OF_PON_GROUPS * 0.2);
+            while (ponGroupsWithSplitterIssue.size < numSplitterIssues) ponGroupsWithSplitterIssue.add(Math.floor(rand() * NUMBER_OF_PON_GROUPS) + 1);
+            const cityCoords = [[33.6831,1.0193],[36.7525,3.0420],[35.6911,-0.6416],[36.3650,6.6147],[36.9000,7.7666]];
+            for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
+                const groupId = ((i - 1) % NUMBER_OF_PON_GROUPS) + 1;
+                const groupHasIssue = ponGroupsWithSplitterIssue.has(groupId);
+                let rx = -17 - rand() * 7;
+                let faultType, degradationRate, suddenDrop = false;
+                if (failureIds.has(i) || (groupHasIssue && rand() < 0.2)) {
+                    const faultRand = rand();
+                    if (faultRand < 0.3) { faultType = 'CONTAMINATION'; degradationRate = 0.2 + rand() * 0.3; }
+                    else if (faultRand < 0.55) { faultType = 'MACROBEND'; degradationRate = 0.5 + rand() * 0.4; suddenDrop = rand() < 0.5; }
+                    else if (faultRand < 0.75) { faultType = 'BREAK'; degradationRate = 0.7 + rand() * 0.5; suddenDrop = true; }
+                    else { faultType = 'SPLICE'; degradationRate = 0.3 + rand() * 0.4; }
+                } else {
+                    if (rand() < 0.15) { faultType = 'CONTAMINATION'; degradationRate = 0.25 + rand() * 0.25; }
+                    else { faultType = 'STABLE'; degradationRate = rand() * 0.15; }
+                }
+                const city = cityCoords[Math.floor(rand() * cityCoords.length)];
+                const oltLat = city[0] + (rand() - 0.5) * 0.02;
+                const oltLng = city[1] + (rand() - 0.5) * 0.02;
+                const onuLat = oltLat + (rand() - 0.5) * 0.06;
+                const onuLng = oltLng + (rand() - 0.5) * 0.06;
+                const fiberLengthKm = 2 + rand() * 8;
+                const helixFactor = 1.02 + rand() * 0.06;
+                const history = [];
+                let current = rx;
+                const seasonalPattern = [0.05,-0.03,0.02,-0.05,0.04,-0.02,0.03,-0.04];
+                for (let m = 0; m < MONTHS_HISTORY; m++) {
+                    const noise = (rand() - 0.5) * 0.5;
+                    const seasonal = seasonalPattern[m];
+                    history.push(current + noise + seasonal);
+                    if (faultType === 'SPLICE') { if (m % 3 === 0 || m % 2 === 0) current -= degradationRate; }
+                    else if (faultType === 'BREAK') { if (m === MONTHS_HISTORY - 1) current -= 2.5; else current -= degradationRate; }
+                    else if (faultType === 'MACROBEND') { if (suddenDrop && m === 3) current -= 1.5; else current -= degradationRate; }
+                    else current -= degradationRate;
+                }
+                let futureFailure = false;
+                for (let f = 0; f < 3; f++) {
+                    if (faultType === 'SPLICE' && f % 2 === 0) current -= degradationRate;
+                    else if (faultType === 'BREAK' && f === 1) current -= 2.5;
+                    else current -= degradationRate;
+                    const futureNoise = (rand() - 0.5) * 0.3;
+                    const futureSeasonal = seasonalPattern[(MONTHS_HISTORY + f) % seasonalPattern.length];
+                    const futureRx = current + futureNoise + futureSeasonal;
+                    if (futureRx <= CRITICAL_THRESHOLD) { futureFailure = true; break; }
+                }
+                const diffs = [];
+                for (let m = 1; m < history.length; m++) diffs.push(history[m-1] - history[m]);
+                const avgDrop = diffs.reduce((a,b) => a+b, 0) / (diffs.length || 1);
+                const stdDrop = Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / (diffs.length || 1));
+                const lastDrop = diffs.length > 0 ? diffs[diffs.length-1] : 0;
+                let actualFaultPositionPct;
+                if (lastDrop > 2.0) actualFaultPositionPct = 0.85 + rand() * 0.15;
+                else if (stdDrop > 0.25) actualFaultPositionPct = 0.35 + rand() * 0.3;
+                else if (avgDrop > 0.4) actualFaultPositionPct = 0.6 + rand() * 0.3;
+                else if (avgDrop > 0.15) actualFaultPositionPct = 0.75 + rand() * 0.25;
+                else actualFaultPositionPct = rand();
+                subscribers.push({ id: i, groupId, history, actualRx: current, actualFailure: futureFailure, degradationRate, faultType, fiberLengthKm, helixFactor, oltCoords: [oltLat, oltLng], onuCoords: [onuLat, onuLng], actualFaultPositionPct });
+            }
+            return subscribers;
+        }
+
+        // ==================== CSV Embedded ====================
+        function loadEmbeddedCSV() {
+            const csvText = `subscriber_id,month_1,month_2,month_3,month_4,month_5,month_6,month_7,month_8,actual_failure,fiber_length_km,helix_factor,fault_position_pct
+1,-20.1,-20.4,-20.7,-21.0,-21.3,-21.6,-21.9,-22.2,0,4.20,1.04,0.85
+2,-18.3,-18.5,-18.8,-19.1,-19.5,-19.9,-20.4,-20.9,0,3.50,1.05,0.85
+3,-22.5,-22.8,-23.1,-23.5,-23.9,-24.3,-24.8,-25.3,1,5.80,1.06,0.90
+4,-19.0,-19.2,-19.5,-19.8,-20.1,-20.5,-20.9,-21.4,0,4.10,1.03,0.85
+5,-21.2,-21.6,-22.0,-22.5,-23.0,-23.5,-24.1,-24.7,1,6.30,1.07,0.92
+6,-17.9,-18.0,-18.2,-18.4,-18.7,-19.0,-19.3,-19.7,0,3.80,1.04,0.84
+7,-20.5,-20.8,-21.2,-21.6,-22.0,-22.5,-23.0,-23.6,1,5.50,1.05,0.88
+8,-18.7,-18.9,-19.2,-19.5,-19.9,-20.3,-20.8,-21.3,0,4.40,1.04,0.85
+9,-22.0,-22.4,-22.8,-23.2,-23.7,-24.2,-24.8,-25.4,1,7.10,1.08,0.93
+10,-19.4,-19.7,-20.0,-20.4,-20.8,-21.3,-21.8,-22.4,0,5.20,1.06,0.87
+11,-20.8,-21.2,-21.7,-22.2,-22.7,-23.3,-23.9,-24.6,1,6.80,1.07,0.91
+12,-18.1,-18.3,-18.6,-18.9,-19.2,-19.6,-20.0,-20.5,0,4.00,1.04,0.85
+13,-21.5,-21.9,-22.4,-22.9,-23.4,-24.0,-24.6,-25.3,1,6.00,1.06,0.89
+14,-19.1,-19.4,-19.7,-20.1,-20.5,-21.0,-21.5,-22.1,0,5.00,1.05,0.87
+15,-22.3,-22.7,-23.2,-23.7,-24.2,-24.8,-25.4,-26.1,1,7.50,1.08,0.94
+16,-18.5,-18.7,-19.0,-19.3,-19.7,-20.1,-20.6,-21.1,0,3.90,1.04,0.85
+17,-20.2,-20.6,-21.0,-21.5,-22.0,-22.5,-23.1,-23.7,1,5.60,1.06,0.88
+18,-19.6,-19.9,-20.2,-20.6,-21.0,-21.5,-22.0,-22.6,0,4.80,1.05,0.87
+19,-22.8,-23.2,-23.7,-24.2,-24.7,-25.3,-25.9,-26.6,1,8.20,1.09,0.95
+20,-18.9,-19.2,-19.5,-19.9,-20.3,-20.8,-21.3,-21.9,0,4.30,1.04,0.86
+21,-20.6,-21.0,-21.5,-22.0,-22.5,-23.1,-23.7,-24.4,1,5.90,1.06,0.90
+22,-18.0,-18.2,-18.5,-18.8,-19.2,-19.6,-20.1,-20.6,0,3.60,1.03,0.84
+23,-21.8,-22.2,-22.7,-23.2,-23.8,-24.4,-25.0,-25.7,1,7.00,1.07,0.92
+24,-19.3,-19.6,-20.0,-20.4,-20.9,-21.4,-22.0,-22.6,0,4.60,1.05,0.87
+25,-22.6,-23.0,-23.5,-24.0,-24.6,-25.2,-25.9,-26.6,1,8.00,1.09,0.95
+26,-18.4,-18.6,-18.9,-19.2,-19.6,-20.0,-20.5,-21.0,0,3.70,1.03,0.85
+27,-20.3,-20.7,-21.1,-21.6,-22.1,-22.7,-23.3,-24.0,1,5.40,1.06,0.88
+28,-19.0,-19.3,-19.7,-20.1,-20.5,-21.0,-21.6,-22.2,0,4.90,1.05,0.87
+29,-21.6,-22.0,-22.5,-23.0,-23.5,-24.1,-24.8,-25.5,1,6.50,1.07,0.91
+30,-18.8,-19.0,-19.3,-19.7,-20.1,-20.6,-21.1,-21.7,0,4.20,1.04,0.86
+31,-20.9,-21.3,-21.8,-22.3,-22.9,-23.5,-24.2,-24.9,1,6.20,1.07,0.90
+32,-18.2,-18.4,-18.7,-19.0,-19.4,-19.8,-20.3,-20.8,0,3.80,1.04,0.85
+33,-22.1,-22.5,-23.0,-23.5,-24.1,-24.7,-25.4,-26.1,1,7.30,1.08,0.93
+34,-19.5,-19.8,-20.2,-20.6,-21.0,-21.5,-22.1,-22.7,0,5.10,1.06,0.87
+35,-22.4,-22.8,-23.3,-23.8,-24.4,-25.0,-25.7,-26.4,1,7.80,1.09,0.94
+36,-18.6,-18.8,-19.1,-19.5,-19.9,-20.4,-20.9,-21.5,0,4.10,1.04,0.86
+37,-20.4,-20.8,-21.3,-21.8,-22.3,-22.9,-23.5,-24.2,1,5.70,1.06,0.89
+38,-19.2,-19.5,-19.9,-20.3,-20.7,-21.2,-21.8,-22.4,0,4.70,1.05,0.87
+39,-21.9,-22.3,-22.8,-23.3,-23.9,-24.5,-25.2,-25.9,1,7.20,1.08,0.92
+40,-18.1,-18.3,-18.6,-18.9,-19.3,-19.7,-20.2,-20.7,0,3.60,1.03,0.84
+41,-20.7,-21.1,-21.6,-22.1,-22.6,-23.2,-23.9,-24.6,1,6.10,1.07,0.90
+42,-18.9,-19.2,-19.5,-19.9,-20.3,-20.8,-21.4,-22.0,0,4.50,1.05,0.86
+43,-22.2,-22.6,-23.1,-23.6,-24.2,-24.8,-25.5,-26.2,1,7.60,1.08,0.93
+44,-19.4,-19.7,-20.1,-20.5,-21.0,-21.5,-22.1,-22.7,0,5.00,1.05,0.87
+45,-22.9,-23.3,-23.8,-24.3,-24.9,-25.5,-26.2,-27.0,1,8.50,1.10,0.96
+46,-18.3,-18.5,-18.8,-19.1,-19.5,-19.9,-20.4,-20.9,0,3.90,1.04,0.85
+47,-20.5,-20.9,-21.4,-21.9,-22.4,-23.0,-23.6,-24.3,1,5.80,1.06,0.89
+48,-19.1,-19.4,-19.8,-20.2,-20.6,-21.1,-21.7,-22.3,0,4.60,1.05,0.86
+49,-21.7,-22.1,-22.6,-23.1,-23.7,-24.3,-25.0,-25.7,1,6.90,1.07,0.91
+50,-18.8,-19.0,-19.3,-19.7,-20.1,-20.6,-21.1,-21.7,0,4.30,1.04,0.86`;
+            processCSVData(csvText);
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => processCSVData(e.target.result);
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function processCSVData(text) {
+            const lines = text.trim().split('\n');
+            if (lines.length < 2) { alert('Empty file'); return; }
+            const headers = lines[0].split(',').map(h => h.trim());
+            const required = ['subscriber_id','month_1','month_2','month_3','month_4','month_5','month_6','month_7','month_8','actual_failure','fiber_length_km','helix_factor','fault_position_pct'];
+            const missing = required.filter(r => !headers.includes(r));
+            if (missing.length > 0) { alert('Missing columns: ' + missing.join(', ')); return; }
+            const subscribers = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(v => v.trim());
+                if (cols.length < headers.length) continue;
+                const id = parseInt(cols[headers.indexOf('subscriber_id')]);
+                const history = [];
+                for (let m = 1; m <= MONTHS_HISTORY; m++) history.push(parseFloat(cols[headers.indexOf('month_' + m)]));
+                const actualFailure = parseInt(cols[headers.indexOf('actual_failure')]) === 1;
+                const fiberLengthKm = parseFloat(cols[headers.indexOf('fiber_length_km')]) || 5;
+                const helixFactor = parseFloat(cols[headers.indexOf('helix_factor')]) || 1.04;
+                const actualFaultPositionPct = parseFloat(cols[headers.indexOf('fault_position_pct')]) || 0.5;
+                subscribers.push({ id, groupId: 'غير محدد', history, actualRx: history[history.length-1], actualFailure, degradationRate: 0, faultType: 'غير محدد', fiberLengthKm, helixFactor, oltCoords: [33.6831,1.0193], onuCoords: [33.7120,1.0450], actualFaultPositionPct });
+            }
+            subscribers.forEach(sub => {
+                const first = sub.history[0], last = sub.history[sub.history.length-1];
+                sub.degradationRate = (first - last) / (MONTHS_HISTORY - 1);
+                sub.faultType = determineRootCause(sub);
+            });
+            window.dataSource = 'csv';
+            renderResults({ subscribers, predictions: subscribers.map(sub => predictFailure(sub)), categories: subscribers.map(sub => classifyRisk(predictFailure(sub))) });
+        }
+
+        function determineRootCause(subscriber) {
+            const h = subscriber.history;
+            const diffs = [];
+            for (let i = 1; i < h.length; i++) diffs.push(h[i-1] - h[i]);
+            if (diffs.length < 3) return 'STABLE';
+            const avgDrop = subscriber.degradationRate || 0;
+            const lastDrop = diffs[diffs.length - 1];
+            const maxDrop = Math.max(...diffs);
+            const minDrop = Math.min(...diffs);
+            const std = Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / diffs.length);
+            if (lastDrop > 2.5 || (lastDrop > 1.5 && lastDrop > 2 * avgDrop)) return 'BREAK';
+            else if (maxDrop > 1.2 && std > 0.4) return 'MACROBEND';
+            else if (std > 0.3 && minDrop < 0.05) return 'SPLICE';
+            else if (avgDrop > 0.15 && std <= 0.3) return 'CONTAMINATION';
+            else return 'STABLE';
+        }
+
+        function translateFaultType(faultType) {
+            const mapping = { 'CONTAMINATION':'fault_contamination','MACROBEND':'fault_macrobend','BREAK':'fault_break','SPLICE':'fault_splice','STABLE':'fault_stable','غير محدد':'undefined' };
+            return t(mapping[faultType] || 'undefined');
+        }
+
+        function smoothSeries(data, windowSize = 3) {
+            const smoothed = [];
+            for (let i = 0; i < data.length; i++) {
+                const start = Math.max(0, i - windowSize + 1);
+                const subset = data.slice(start, i + 1);
+                smoothed.push(subset.reduce((a,b) => a+b, 0) / subset.length);
+            }
+            return smoothed;
+        }
+
+        function linearRegression(y) {
+            const n = y.length;
+            const x = Array.from({length: n}, (_, i) => i + 1);
+            const sumX = x.reduce((a,b) => a+b, 0);
+            const sumY = y.reduce((a,b) => a+b, 0);
+            const sumXY = x.reduce((a,b,i) => a + b*y[i], 0);
+            const sumX2 = x.reduce((a,b) => a + b*b, 0);
+            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+            return { slope, intercept };
+        }
+
+        function detectTemporalAnomaly(history) {
+            const lastThree = history.slice(-3);
+            if (lastThree.length < 3) return false;
+            const mean = lastThree.reduce((a,b) => a+b, 0) / 3;
+            const variance = lastThree.reduce((a,b) => a + (b-mean)**2, 0) / 3;
+            const std = Math.sqrt(variance);
+            const last = lastThree[2], prev = lastThree[1];
+            return (prev - last) > 2 * std;
+        }
+
+        function confidenceScore(slope, anomaly, history) {
+            let confidence = 0;
+            const avgSlope = Math.abs(slope);
+            if (avgSlope > 0.5) confidence += 60;
+            else if (avgSlope > 0.3) confidence += 40;
+            else if (avgSlope > 0.15) confidence += 20;
+            if (anomaly) confidence += 20;
+            const lastRx = history[history.length-1];
+            const distance = Math.abs(CRITICAL_THRESHOLD - lastRx);
+            if (distance < 1) confidence += 20;
+            else if (distance < 2) confidence += 10;
+            return Math.min(95, confidence);
+        }
+
+        function survivalProbability(predictedRx) {
+            const diff = predictedRx - CRITICAL_THRESHOLD;
+            return 1 / (1 + Math.exp(-diff / 1.5));
+        }
+
+        function predictFailure(subscriber) {
+            const smoothed = smoothSeries(subscriber.history, 3);
+            const { slope, intercept } = linearRegression(smoothed);
+            let monthsToCritical = Infinity;
+            if (slope < 0) monthsToCritical = (CRITICAL_THRESHOLD - intercept) / slope;
+            const lastRx = subscriber.history[subscriber.history.length-1];
+            const distanceToCritical = Math.max(0, CRITICAL_THRESHOLD - lastRx);
+            const anomaly = detectTemporalAnomaly(subscriber.history);
+            let riskScore = Math.min(100, Math.abs(slope) * 60 + distanceToCritical * 5);
+            if (anomaly) riskScore = Math.min(100, riskScore + 10);
+            const warning = (Math.abs(slope) > 0.45) || (monthsToCritical <= 3 && monthsToCritical >= 0);
+            const confidence = confidenceScore(slope, anomaly, subscriber.history);
+            const survivalProbabilities = [];
+            for (let m = 1; m <= 3; m++) {
+                const predictedRx = intercept + slope * (MONTHS_HISTORY + m);
+                survivalProbabilities.push(survivalProbability(predictedRx).toFixed(2));
+            }
+
+            const diffs = [];
+            for (let i = 1; i < subscriber.history.length; i++) diffs.push(subscriber.history[i-1] - subscriber.history[i]);
+            const avgDrop = subscriber.degradationRate || 0;
+            const stdDrop = diffs.length > 0 ? Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / diffs.length) : 0;
+            const lastDrop = diffs.length > 0 ? diffs[diffs.length - 1] : 0;
+
+            let predictedFaultPct;
+            if (anomaly || lastDrop > 2.0) predictedFaultPct = 0.85;
+            else if (stdDrop > 0.25) predictedFaultPct = 0.55;
+            else if (Math.abs(slope) > 0.4) predictedFaultPct = 0.70;
+            else if (Math.abs(slope) > 0.15) predictedFaultPct = 0.75;
+            else predictedFaultPct = 0.85;
+
+            const predictedFiberKm = predictedFaultPct * subscriber.fiberLengthKm;
+            const predictedCableKm = predictedFiberKm / subscriber.helixFactor;
+            const uncertaintyMeters = (0.15 * subscriber.fiberLengthKm * 1000);
+
+            const actualFiberKm = subscriber.actualFaultPositionPct * subscriber.fiberLengthKm;
+            const errorKm = Math.abs(predictedFiberKm - actualFiberKm);
+            const errorMeters = errorKm * 1000;
+
+            return {
+                slope,
+                predictedMonths: monthsToCritical,
+                riskScore,
+                warning,
+                anomaly,
+                confidence,
+                survivalProbabilities,
+                predictedFaultPct,
+                predictedFiberKm,
+                predictedCableKm,
+                errorMeters,
+                uncertaintyMeters
+            };
+        }
+
+        function classifyRisk(pred) {
+            const score = pred.riskScore;
+            if (pred.warning) {
+                if (score >= 65) return 'حرج';
+                else return 'خطر';
+            } else {
+                if (score >= 20) return 'مراقبة';
+                else return 'مستقر';
+            }
+        }
+
+        function translateCategory(cat) {
+            const map = { 'مستقر':'stable','مراقبة':'monitor','خطر':'danger','حرج':'critical' };
+            return t(map[cat] || 'stable');
+        }
+
+        function isPositiveRisk(category) { return category === 'خطر' || category === 'حرج'; }
+
+        function computeMetrics(subscribers, predictions, categories) {
+            let tp=0,fp=0,tn=0,fn=0;
+            subscribers.forEach((sub,i) => {
+                const actual = sub.actualFailure;
+                const pred = isPositiveRisk(categories[i]);
+                if (actual && pred) tp++;
+                else if (!actual && pred) fp++;
+                else if (!actual && !pred) tn++;
+                else if (actual && !pred) fn++;
+            });
+            return {
+                tp, fp, tn, fn,
+                precision: tp/(tp+fp)||0,
+                recall: tp/(tp+fn)||0,
+                f1: 2*(tp/(tp+fp)||0)*(tp/(tp+fn)||0)/((tp/(tp+fp)||0)+(tp/(tp+fn)||0))||0,
+                accuracy: (tp+tn)/(tp+tn+fp+fn)
+            };
+        }
+
+        function computeROC(subscribers, predictions) {
+            const sorted = subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore - predictions[a].riskScore);
+            let tp=0,fp=0;
+            const totalPos = subscribers.filter(s=>s.actualFailure).length;
+            const totalNeg = subscribers.length - totalPos;
+            const points = [[0,0]];
+            for (const idx of sorted) {
+                if (subscribers[idx].actualFailure) tp++; else fp++;
+                points.push([fp/totalNeg, tp/totalPos]);
+            }
+            let auc = 0;
+            for (let i=1;i<points.length;i++) {
+                const [x1,y1] = points[i-1], [x2,y2] = points[i];
+                auc += (x2-x1)*(y1+y2)/2;
+            }
+            return { points, auc };
+        }
+
+        function renderResults(data) {
+            const { subscribers, predictions, categories } = data;
+            const metrics = computeMetrics(subscribers, predictions, categories);
+            const roc = computeROC(subscribers, predictions);
+            window.lastResults = data;
+
+            let totalError = 0, countError = 0;
+            subscribers.forEach((sub, i) => {
+                if (isPositiveRisk(categories[i]) && sub.actualFailure) {
+                    totalError += predictions[i].errorMeters;
+                    countError++;
+                }
+            });
+            const avgErrorMeters = countError > 0 ? totalError / countError : 0;
+
+            document.getElementById('metricsBox').innerHTML = `
+                <div class="metric-card"><div class="metric-value">${subscribers.length}</div><div class="metric-label">${t('subscriber')}</div></div>
+                <div class="metric-card"><div class="metric-value">${metrics.tp + metrics.fn}</div><div class="metric-label">${t('actual_state')}</div></div>
+                <div class="metric-card"><div class="metric-value">${(metrics.precision*100).toFixed(1)}%</div><div class="metric-label">Precision</div></div>
+                <div class="metric-card"><div class="metric-value">${(metrics.recall*100).toFixed(1)}%</div><div class="metric-label">Recall</div></div>
+                <div class="metric-card"><div class="metric-value">${(metrics.f1*100).toFixed(1)}%</div><div class="metric-label">F1-Score</div></div>
+                <div class="metric-card"><div class="metric-value">${(metrics.accuracy*100).toFixed(1)}%</div><div class="metric-label">Accuracy</div></div>
+                <div class="metric-card"><div class="metric-value">${(roc.auc*100).toFixed(1)}%</div><div class="metric-label">AUC</div></div>
+                <div class="metric-card"><div class="metric-value">${avgErrorMeters.toFixed(1)}</div><div class="metric-label">متوسط الخطأ المكاني (م)</div></div>`;
+
+            const source = window.dataSource === 'csv' ? t('source_csv') : t('source_sim');
+            document.getElementById('summary').textContent = t('summary_text')
+                .replace('{total}', subscribers.length).replace('{risk}', metrics.tp + metrics.fp)
+                .replace('{actual}', metrics.tp + metrics.fn).replace('{tp}', metrics.tp).replace('{fp}', metrics.fp) + ` (${source})`;
+
+            const catCounts = { 'مستقر':0, 'مراقبة':0, 'خطر':0, 'حرج':0 };
+            categories.forEach(c => catCounts[c]++);
+            document.getElementById('categoryStats').innerHTML = `
+                <div class="metric-card"><div class="metric-value">${catCounts['مستقر']}</div><div class="metric-label">${t('stable')}</div></div>
+                <div class="metric-card"><div class="metric-value">${catCounts['مراقبة']}</div><div class="metric-label">${t('monitor')}</div></div>
+                <div class="metric-card"><div class="metric-value">${catCounts['خطر']}</div><div class="metric-label">${t('danger')}</div></div>
+                <div class="metric-card"><div class="metric-value">${catCounts['حرج']}</div><div class="metric-label">${t('critical')}</div></div>`;
+
+            const sorted = subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore - predictions[a].riskScore);
+            const top5 = sorted.slice(0,5);
+
+            const topTbody = document.getElementById('topRiskTbody');
+            topTbody.innerHTML = '';
+            top5.forEach(i => {
+                const sub = subscribers[i], pred = predictions[i], cat = categories[i];
+                const predictedText = pred.predictedMonths > 12 ? t('more_than_year') : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1)+' '+t('months_unit') : t('more_than_year'));
+                const actualStatus = sub.actualFailure ? t('will_fail') : t('is_stable');
+                const rowClass = sub.actualFailure ? 'alert' : (cat === 'حرج' ? 'critical' : cat === 'خطر' ? 'warn' : cat === 'مراقبة' ? 'monitor' : 'safe');
+                topTbody.innerHTML += `<tr><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${predictedText}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td></tr>`;
+            });
+
+            const allTbody = document.getElementById('allSubscribersTbody');
+            allTbody.innerHTML = '';
+            sorted.forEach(i => {
+                const sub = subscribers[i], pred = predictions[i], cat = categories[i];
+                const predictedText = pred.predictedMonths > 12 ? t('more_than_year') : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1)+' '+t('months_unit') : t('more_than_year'));
+                const actualStatus = sub.actualFailure ? t('will_fail') : t('is_stable');
+                const rowClass = sub.actualFailure ? 'alert' : (cat === 'حرج' ? 'critical' : cat === 'خطر' ? 'warn' : cat === 'مراقبة' ? 'monitor' : 'safe');
+                let reason = '';
+                if (isPositiveRisk(cat)) {
+                    reason = `Degradation ${Math.abs(pred.slope).toFixed(3)} dB/month, expected in ${predictedText}`;
+                    if (pred.anomaly) reason += ' (Anomaly)';
+                    if (sub.faultType !== 'غير محدد' && sub.faultType !== 'STABLE') reason += ` (${translateFaultType(sub.faultType)})`;
+                } else if (cat === 'مراقبة') reason = t('monitor');
+                else reason = t('stable');
+                const survivalText = pred.survivalProbabilities.map((p,idx) => `M${idx+1}: ${p}`).join(' | ');
+                const locationText = `${pred.predictedFiberKm.toFixed(2)} ± ${pred.uncertaintyMeters.toFixed(0)}م`;
+                allTbody.innerHTML += `<tr><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td><td>${reason}</td><td class="survival-box">${survivalText}</td><td>${pred.errorMeters.toFixed(1)}</td><td>${locationText}</td></tr>`;
+            });
+
+            if (typeof L !== 'undefined') {
+                renderGISMap(subscribers, top5);
+            }
+            renderLongitudinalChart(subscribers, top5);
+
+            document.getElementById('results').style.display = 'block';
+        }
+
+        function renderGISMap(subscribers, topIndices) {
+            const container = document.getElementById('gisMap');
+            if (!container) return;
+            if (gisMapInstance) { gisMapInstance.remove(); }
+            gisMapInstance = L.map(container).setView([33.6831, 1.0193], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(gisMapInstance);
+            topIndices.forEach(idx => {
+                const sub = subscribers[idx];
+                const pred = window.lastResults.predictions[idx];
+                const faultLat = sub.oltCoords[0] + pred.predictedFaultPct * (sub.onuCoords[0] - sub.oltCoords[0]);
+                const faultLng = sub.oltCoords[1] + pred.predictedFaultPct * (sub.onuCoords[1] - sub.oltCoords[1]);
+                L.polyline([sub.oltCoords, sub.onuCoords], {color: '#00acc1', weight: 2, dashArray: '4 4'}).addTo(gisMapInstance);
+                L.marker(sub.oltCoords).addTo(gisMapInstance).bindPopup('OLT');
+                L.circleMarker([faultLat, faultLng], { radius: 6, color: '#d81b60', fillColor: '#f48fb1', fillOpacity: 0.9 }).addTo(gisMapInstance).bindPopup(`Sub ${sub.id}: Predicted fault`);
+            });
+        }
+
+        function renderLongitudinalChart(subscribers, topIndices) {
+            const canvas = document.getElementById('longitudinalChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0,0,W,H);
+            const padding = 30;
+            const lineY = H/2;
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(padding, lineY); ctx.lineTo(W-padding, lineY); ctx.stroke();
+            ctx.fillStyle = '#0f172a'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'center';
+            ctx.fillText('OLT', padding, lineY - 10);
+            ctx.fillText('ONU', W-padding, lineY - 10);
+            topIndices.forEach(idx => {
+                const sub = subscribers[idx];
+                const pred = window.lastResults.predictions[idx];
+                const x = padding + pred.predictedFaultPct * (W - 2*padding);
+                ctx.fillStyle = '#d81b60';
+                ctx.beginPath(); ctx.arc(x, lineY, 5, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#0f172a'; ctx.font = '9px Segoe UI'; ctx.textAlign = 'center';
+                ctx.fillText('Sub '+sub.id, x, lineY + 20);
+            });
+        }
+
+        function runSimulation() {
+            const seedValue = parseInt(document.getElementById('seedInput').value, 10) || 42;
+            const rand = mulberry32(seedValue);
+            const subscribers = generateSubscribers(rand);
+            window.dataSource = 'simulation';
+            const predictions = subscribers.map(sub => predictFailure(sub));
+            const categories = predictions.map(p => classifyRisk(p));
+            renderResults({ subscribers, predictions, categories });
+        }
+
+        function exportResults() {
+            if (!window.lastResults) { alert('يرجى تشغيل التحليل أولاً'); return; }
+            const { subscribers, predictions, categories } = window.lastResults;
+            let csv = 'subscriber,group,last_rx,degradation,cause,risk_score,confidence,category,actual_state,survival,predicted_km,cable_km,error_meters,uncertainty_meters\n';
+            subscribers.forEach((sub,i) => {
+                const pred = predictions[i], cat = categories[i];
+                const actual = sub.actualFailure ? 'failure' : 'ok';
+                const survival = pred.survivalProbabilities.join('|');
+                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${pred.confidence}%,${cat},${actual},${survival},${pred.predictedFiberKm.toFixed(2)},${pred.predictedCableKm.toFixed(2)},${pred.errorMeters.toFixed(1)},${pred.uncertaintyMeters.toFixed(1)}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'AT-FiberPredict_Results.csv';
+            link.click();
+        }
+
+        function init() {
+            buildHeaders();
+        }
+        init();
+    </script>
+</body>
+</html>
