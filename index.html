@@ -107,6 +107,7 @@
         canvas { background: transparent; display: block; max-width: 100%; }
         .map-container { background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.9); border-radius: 12px; padding: 5px; margin-top: 15px; height: 350px; }
         .pon-summary { background: rgba(255,255,255,0.6); border-radius: 10px; padding: 12px; font-size: 14px; line-height: 1.6; color: var(--text-primary); }
+        .highlight-row { background-color: #fff9c4 !important; }
         .print-header { display: none; }
         @media print {
             body { background: white; color: black; }
@@ -474,11 +475,8 @@
             const rand = mulberry32(seed);
             const subscribers = [];
             const cityCoords = [[33.6831,1.0193],[36.7525,3.0420],[35.6911,-0.6416],[36.3650,6.6147],[36.9000,7.7666]];
-
-            // 14 مشترك سيتعطلون فعلياً (واقعية)
             const failureIds = new Set();
             while (failureIds.size < 14) failureIds.add(Math.floor(rand() * 50) + 1);
-
             for (let i = 1; i <= 50; i++) {
                 const groupId = ((i - 1) % 10) + 1;
                 const isFailure = failureIds.has(i);
@@ -489,7 +487,6 @@
                 } else {
                     degradationRate = rand() * 0.3;
                 }
-
                 const history = [];
                 let current = rx;
                 const seasonalPattern = [0.05,-0.03,0.02,-0.05,0.04,-0.02,0.03,-0.04];
@@ -509,18 +506,16 @@
                     if (futureRx <= CRITICAL_THRESHOLD) { futureFailure = true; break; }
                 }
                 if (isFailure) {
-                    futureFailure = rand() < 0.85; // 15% من المتعطلين لا يتعطلون فعلياً (إنذار كاذب)
+                    futureFailure = rand() < 0.85;
                 } else {
-                    futureFailure = futureFailure || rand() < 0.1; // 10% من المستقرين يتعطلون فجأة (عطل فائت)
+                    futureFailure = futureFailure || rand() < 0.1;
                 }
-
                 const fiberLengthKm = 2 + rand() * 8;
                 const helixFactor = 1.02 + rand() * 0.06;
                 const oltLat = cityCoords[Math.floor(rand() * cityCoords.length)][0] + (rand() - 0.5) * 0.02;
                 const oltLng = cityCoords[Math.floor(rand() * cityCoords.length)][1] + (rand() - 0.5) * 0.02;
                 const onuLat = oltLat + (rand() - 0.5) * 0.06;
                 const onuLng = oltLng + (rand() - 0.5) * 0.06;
-
                 const diffs = [];
                 for (let m = 1; m < history.length; m++) diffs.push(history[m-1] - history[m]);
                 const avgDrop = degradationRate || 0;
@@ -533,7 +528,6 @@
                 else if (avgDrop > 0.15) baseFaultPct = 0.75;
                 else baseFaultPct = 0.85;
                 const actualFaultPositionPct = Math.min(0.98, Math.max(0.02, baseFaultPct + (rand() - 0.5) * 0.4));
-
                 subscribers.push({
                     id: i,
                     groupId,
@@ -790,9 +784,34 @@
                 const pred = window.lastResults.predictions[idx];
                 const faultLat = sub.oltCoords[0] + pred.predictedFaultPct * (sub.onuCoords[0] - sub.oltCoords[0]);
                 const faultLng = sub.oltCoords[1] + pred.predictedFaultPct * (sub.onuCoords[1] - sub.oltCoords[1]);
+                const marker = L.circleMarker([faultLat, faultLng], {
+                    radius: 6,
+                    color: '#d81b60',
+                    fillColor: '#f48fb1',
+                    fillOpacity: 0.9
+                }).addTo(gisMapInstance);
+
+                // تفعيل الـ Popup والتفاعل
+                marker.bindPopup(`
+                    <b>مشترك ${sub.id}</b><br>
+                    آخر Rx: ${sub.history[sub.history.length-1].toFixed(2)} dBm<br>
+                    التدهور: ${sub.degradationRate.toFixed(3)} dB/شهر<br>
+                    التصنيف: ${translateCategory(window.lastResults.categories[idx])}<br>
+                    الحالة: ${sub.actualFailure ? t('will_fail') : t('is_stable')}
+                `);
+
+                marker.on('click', () => {
+                    // تمييز الصف في الجدول
+                    const row = document.getElementById(`row-${sub.id}`);
+                    if (row) {
+                        // إزالة التمييز من الكل
+                        document.querySelectorAll('#allSubscribersTbody tr').forEach(tr => tr.classList.remove('highlight-row'));
+                        row.classList.add('highlight-row');
+                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+
                 L.polyline([sub.oltCoords, sub.onuCoords], {color: '#00acc1', weight: 2, dashArray: '4 4'}).addTo(gisMapInstance);
-                L.marker(sub.oltCoords).addTo(gisMapInstance).bindPopup('OLT');
-                L.circleMarker([faultLat, faultLng], { radius: 6, color: '#d81b60', fillColor: '#f48fb1', fillOpacity: 0.9 }).addTo(gisMapInstance).bindPopup(`Sub ${sub.id}: Predicted fault`);
             });
         }
 
@@ -886,7 +905,7 @@
                 const predictedText = pred.predictedMonths > 12 ? t('more_than_year') : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1)+' '+t('months_unit') : t('more_than_year'));
                 const actualStatus = sub.actualFailure ? t('will_fail') : t('is_stable');
                 const rowClass = sub.actualFailure ? 'alert' : (cat === 'حرج' ? 'critical' : cat === 'خطر' ? 'warn' : cat === 'مراقبة' ? 'monitor' : 'safe');
-                topTbody.innerHTML += `<tr><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${predictedText}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td></tr>`;
+                topTbody.innerHTML += `<tr id="toprow-${sub.id}"><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${predictedText}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td></tr>`;
             });
 
             const allTbody = document.getElementById('allSubscribersTbody');
@@ -905,7 +924,7 @@
                 else reason = t('stable');
                 const survivalText = pred.survivalProbabilities.map((p,idx) => `M${idx+1}: ${p}`).join(' | ');
                 const locationText = `${pred.predictedFiberKm.toFixed(2)} ± ${pred.uncertaintyMeters.toFixed(0)}م`;
-                allTbody.innerHTML += `<tr><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td><td>${reason}</td><td class="survival-box">${survivalText}</td><td>${pred.errorMeters.toFixed(1)}</td><td>${locationText}</td></tr>`;
+                allTbody.innerHTML += `<tr id="row-${sub.id}"><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td><td>${reason}</td><td class="survival-box">${survivalText}</td><td>${pred.errorMeters.toFixed(1)}</td><td>${locationText}</td></tr>`;
             });
 
             drawSignalChartManual(subscribers, top5);
