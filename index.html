@@ -108,6 +108,20 @@
         .map-container { background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.9); border-radius: 12px; padding: 5px; margin-top: 15px; height: 350px; }
         .pon-summary { background: rgba(255,255,255,0.6); border-radius: 10px; padding: 12px; font-size: 14px; line-height: 1.6; color: var(--text-primary); }
         .highlight-row { background-color: #fff9c4 !important; }
+        .nav-btns { display: flex; gap: 5px; margin-top: 8px; }
+        .nav-btn {
+            background: #1e3a8a;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .nav-btn:hover { background: #1e40af; }
         .print-header { display: none; }
         @media print {
             body { background: white; color: black; }
@@ -266,7 +280,10 @@
                 fault_break: 'كسر ليفي',
                 fault_splice: 'لحام رديء',
                 fault_stable: 'مستقر',
-                undefined: 'غير محدد'
+                undefined: 'غير محدد',
+                threshold_label: 'عتبة الخطر:',
+                navigate_google: 'Google Maps',
+                navigate_waze: 'Waze'
             },
             fr: {
                 subtitle: 'Moteur prédictif de pannes FTTH/GPON',
@@ -315,7 +332,10 @@
                 fault_break: 'Rupture de fibre',
                 fault_splice: 'Épissure défectueuse',
                 fault_stable: 'Stable',
-                undefined: 'Indéfini'
+                undefined: 'Indéfini',
+                threshold_label: 'Seuil de danger:',
+                navigate_google: 'Google Maps',
+                navigate_waze: 'Waze'
             },
             en: {
                 subtitle: 'FTTH/GPON Predictive Fault Engine',
@@ -364,7 +384,10 @@
                 fault_break: 'Fiber Break',
                 fault_splice: 'Bad Splice',
                 fault_stable: 'Stable',
-                undefined: 'Undefined'
+                undefined: 'Undefined',
+                threshold_label: 'Critical threshold:',
+                navigate_google: 'Google Maps',
+                navigate_waze: 'Waze'
             }
         };
 
@@ -769,6 +792,19 @@
             return { points, auc };
         }
 
+        // ==================== NAVIGATION ====================
+        function openNavigation(lat, lng, type) {
+            let url = '';
+            if (type === 'google') {
+                url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+            } else if (type === 'waze') {
+                url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+            }
+            if (url) {
+                window.open(url, '_blank');
+            }
+        }
+
         // ==================== GIS ====================
         function renderGISMap(subscribers, topIndices) {
             const container = document.getElementById('gisMap');
@@ -791,20 +827,23 @@
                     fillOpacity: 0.9
                 }).addTo(gisMapInstance);
 
-                // تفعيل الـ Popup والتفاعل
+                // Popup with threshold and navigation buttons
                 marker.bindPopup(`
-                    <b>مشترك ${sub.id}</b><br>
-                    آخر Rx: ${sub.history[sub.history.length-1].toFixed(2)} dBm<br>
-                    التدهور: ${sub.degradationRate.toFixed(3)} dB/شهر<br>
-                    التصنيف: ${translateCategory(window.lastResults.categories[idx])}<br>
-                    الحالة: ${sub.actualFailure ? t('will_fail') : t('is_stable')}
+                    <b>${t('subscriber')} ${sub.id}</b><br>
+                    ${t('last_rx')}: ${sub.history[sub.history.length-1].toFixed(2)} dBm<br>
+                    ${t('degradation')}: ${sub.degradationRate.toFixed(3)} dB/${t('months_unit')}<br>
+                    ${t('category')}: ${translateCategory(window.lastResults.categories[idx])}<br>
+                    ${t('actual_state')}: ${sub.actualFailure ? t('will_fail') : t('is_stable')}<br>
+                    <b>${t('threshold_label')} ${CRITICAL_THRESHOLD} dBm</b><br>
+                    <div class="nav-btns">
+                        <button class="nav-btn" onclick="openNavigation(${faultLat}, ${faultLng}, 'google')">${t('navigate_google')}</button>
+                        <button class="nav-btn" onclick="openNavigation(${faultLat}, ${faultLng}, 'waze')">${t('navigate_waze')}</button>
+                    </div>
                 `);
 
                 marker.on('click', () => {
-                    // تمييز الصف في الجدول
                     const row = document.getElementById(`row-${sub.id}`);
                     if (row) {
-                        // إزالة التمييز من الكل
                         document.querySelectorAll('#allSubscribersTbody tr').forEach(tr => tr.classList.remove('highlight-row'));
                         row.classList.add('highlight-row');
                         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
