@@ -8,6 +8,8 @@
     <meta name="theme-color" content="#f0f9ff" />
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
             --bg-base: #f4faff; --glass-bg: rgba(255,255,255,0.55);
@@ -110,16 +112,9 @@
         .highlight-row { background-color: #fff9c4 !important; }
         .nav-btns { display: flex; gap: 5px; margin-top: 8px; }
         .nav-btn {
-            background: #1e3a8a;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 6px 10px;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
+            background: #1e3a8a; color: white; border: none; border-radius: 6px;
+            padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+            text-decoration: none; display: inline-block;
         }
         .nav-btn:hover { background: #1e40af; }
         .print-header { display: none; }
@@ -127,24 +122,10 @@
             body { background: white; color: black; }
             .card { box-shadow: none; border: 1px solid #ddd; background: white; backdrop-filter: none; }
             .no-print { display: none; }
-            .print-header { display: block; text-align: center; margin-bottom: 20px; color: black; }
-            .metric-card, .btn, .lang-btn, table, .survival-box, .pon-summary, .chart-container, .map-container { background: white; color: black; border-color: #ddd; }
-            .metric-card .value { color: #1e3a8a; text-shadow: none; }
-            th { background: #1e3a8a; color: white; text-shadow: none; }
-            .alert { background: #fee2e2; color: #b91c1c; }
-            .safe { background: #dcfce7; color: #166534; }
-            .warn { background: #fef3c7; color: #92400e; }
-            .monitor { background: #dbeafe; color: #1e40af; }
-            .critical { background: #fee2e2; color: #b91c1c; }
         }
     </style>
 </head>
 <body>
-    <div class="print-header">
-        <h1 data-i18n="print_title">AT-FiberPredict - Predictive Maintenance Report</h1>
-        <p data-i18n="print_date">Report Date: <span id="printDate"></span></p>
-    </div>
-
     <div class="app-header">
         <h1>🧠 AT-FiberPredict</h1>
         <p data-i18n="subtitle">FTTH/GPON Predictive Fault Engine</p>
@@ -165,7 +146,7 @@
                 <input type="file" id="csvFileInput" accept=".csv" onchange="handleCSVFile(event)">
                 <button class="btn btn-warning" onclick="compareTwoSeeds()" data-i18n="compare">🔁 Compare Seeds</button>
                 <button class="btn btn-success" onclick="exportCSV()" data-i18n="export_csv">📥 Export CSV</button>
-                <button class="btn btn-outline" onclick="printReport()" data-i18n="print_pdf">🖨️ PDF Report</button>
+                <button class="btn btn-outline" onclick="printReport()" data-i18n="print_pdf">📄 PDF Report</button>
             </div>
             <div class="seed-box">
                 <label for="seedInput" data-i18n="seed_label">Seed:</label>
@@ -240,7 +221,7 @@
                 upload_csv: '📂 تحميل CSV',
                 compare: '🔁 مقارنة بذرتين',
                 export_csv: '📥 تصدير CSV',
-                print_pdf: '🖨️ تقرير PDF',
+                print_pdf: '📄 تقرير PDF',
                 seed_label: 'البذرة:',
                 seed_hint: 'نفس البذرة = نفس النتائج',
                 analysis_title: '📊 نتائج التحليل',
@@ -249,145 +230,60 @@
                 signal_chart_title: '📈 منحنيات تدهور الإشارة',
                 roc_title: '📉 منحنى ROC',
                 all_subs_title: '📋 جميع المشتركين',
-                subscriber: 'المشترك',
-                group: 'المجموعة',
-                last_rx: 'آخر Rx',
-                degradation: 'التدهور',
-                predicted_month: 'الشهر المتوقع',
-                cause: 'السبب المحتمل',
-                risk_score: 'مؤشر الخطورة',
-                confidence: 'الثقة',
-                category: 'التصنيف',
-                actual_state: 'الحالة الفعلية',
-                reason: 'سبب الخطورة',
-                survival: 'تحليل البقاء',
-                stable: 'مستقر',
-                monitor: 'مراقبة',
-                danger: 'خطر',
-                critical: 'حرج',
-                will_fail: '⚠️ سيتعطل',
-                is_stable: '✅ مستقر',
-                source_sim: 'محاكاة افتراضية',
-                source_csv: 'ملف CSV خارجي',
+                subscriber: 'المشترك', group: 'المجموعة', last_rx: 'آخر Rx', degradation: 'التدهور',
+                predicted_month: 'الشهر المتوقع', cause: 'السبب المحتمل', risk_score: 'مؤشر الخطورة',
+                confidence: 'الثقة', category: 'التصنيف', actual_state: 'الحالة الفعلية', reason: 'سبب الخطورة',
+                survival: 'تحليل البقاء', stable: 'مستقر', monitor: 'مراقبة', danger: 'خطر', critical: 'حرج',
+                will_fail: '⚠️ سيتعطل', is_stable: '✅ مستقر',
+                source_sim: 'محاكاة افتراضية', source_csv: 'ملف CSV خارجي',
                 summary_text: 'من بين {total} مشترك، تم تصنيف {risk} كحالات خطر/حرج. القيمة الفعلية كانت {actual} عطل حقيقي. الإنذارات الصحيحة: {tp}، الكاذبة: {fp}.',
-                no_pon_risk: 'لا توجد مجموعات معرضة للخطر',
-                months_unit: 'شهر',
-                more_than_year: 'أكثر من سنة',
-                print_title: 'AT-FiberPredict - تقرير التنبؤ الوقائي',
-                print_date: 'تاريخ التقرير:',
-                fault_contamination: 'تلوث موصل',
-                fault_macrobend: 'انحناء حاد',
-                fault_break: 'كسر ليفي',
-                fault_splice: 'لحام رديء',
-                fault_stable: 'مستقر',
-                undefined: 'غير محدد',
-                threshold_label: 'عتبة الخطر:',
-                navigate_google: 'Google Maps',
-                navigate_waze: 'Waze'
+                no_pon_risk: 'لا توجد مجموعات معرضة للخطر', months_unit: 'شهر', more_than_year: 'أكثر من سنة',
+                print_title: 'AT-FiberPredict - تقرير التنبؤ الوقائي', print_date: 'تاريخ التقرير:',
+                fault_contamination: 'تلوث موصل', fault_macrobend: 'انحناء حاد', fault_break: 'كسر ليفي',
+                fault_splice: 'لحام رديء', fault_stable: 'مستقر', undefined: 'غير محدد',
+                threshold_label: 'عتبة الخطر:', navigate_google: 'Google Maps', navigate_waze: 'Waze'
             },
             fr: {
-                subtitle: 'Moteur prédictif de pannes FTTH/GPON',
-                run_sim: '▶️ Lancer la simulation',
-                load_repo: '📥 Données du dépôt',
-                upload_csv: '📂 Charger CSV',
-                compare: '🔁 Comparer les graines',
-                export_csv: '📥 Exporter CSV',
-                print_pdf: '🖨️ Rapport PDF',
-                seed_label: 'Graine :',
-                seed_hint: 'Même graine = mêmes résultats',
-                analysis_title: '📊 Résultats de l\'analyse',
-                pon_title: '📍 Répartition des risques PON',
-                top5_title: 'Top 5 des abonnés',
-                signal_chart_title: '📈 Courbes de dégradation',
-                roc_title: '📉 Courbe ROC',
-                all_subs_title: '📋 Tous les abonnés',
-                subscriber: 'Abonné',
-                group: 'Groupe',
-                last_rx: 'Dernier Rx',
-                degradation: 'Dégradation',
-                predicted_month: 'Mois prévu',
-                cause: 'Cause probable',
-                risk_score: 'Score de risque',
-                confidence: 'Confiance',
-                category: 'Catégorie',
-                actual_state: 'État réel',
-                reason: 'Raison du risque',
-                survival: 'Analyse de survie',
-                stable: 'Stable',
-                monitor: 'Surveillance',
-                danger: 'Danger',
-                critical: 'Critique',
-                will_fail: '⚠️ Panne prévue',
-                is_stable: '✅ Stable',
-                source_sim: 'Simulation',
-                source_csv: 'Fichier CSV',
+                subtitle: 'Moteur prédictif de pannes FTTH/GPON', run_sim: '▶️ Lancer la simulation',
+                load_repo: '📥 Données du dépôt', upload_csv: '📂 Charger CSV', compare: '🔁 Comparer les graines',
+                export_csv: '📥 Exporter CSV', print_pdf: '📄 Rapport PDF', seed_label: 'Graine :',
+                seed_hint: 'Même graine = mêmes résultats', analysis_title: '📊 Résultats de l\'analyse',
+                pon_title: '📍 Répartition des risques PON', top5_title: 'Top 5 des abonnés',
+                signal_chart_title: '📈 Courbes de dégradation', roc_title: '📉 Courbe ROC',
+                all_subs_title: '📋 Tous les abonnés', subscriber: 'Abonné', group: 'Groupe',
+                last_rx: 'Dernier Rx', degradation: 'Dégradation', predicted_month: 'Mois prévu',
+                cause: 'Cause probable', risk_score: 'Score de risque', confidence: 'Confiance',
+                category: 'Catégorie', actual_state: 'État réel', reason: 'Raison du risque',
+                survival: 'Analyse de survie', stable: 'Stable', monitor: 'Surveillance',
+                danger: 'Danger', critical: 'Critique', will_fail: '⚠️ Panne prévue', is_stable: '✅ Stable',
+                source_sim: 'Simulation', source_csv: 'Fichier CSV',
                 summary_text: 'Parmi {total} abonnés, {risk} classés à risque. Réel: {actual} pannes. Alertes correctes: {tp}, fausses: {fp}.',
-                no_pon_risk: 'Aucun groupe à risque',
-                months_unit: 'mois',
-                more_than_year: 'Plus d\'un an',
-                print_title: 'AT-FiberPredict - Rapport de maintenance prédictive',
-                print_date: 'Date du rapport :',
-                fault_contamination: 'Contamination connecteur',
-                fault_macrobend: 'Macrocourbure',
-                fault_break: 'Rupture de fibre',
-                fault_splice: 'Épissure défectueuse',
-                fault_stable: 'Stable',
-                undefined: 'Indéfini',
-                threshold_label: 'Seuil de danger:',
-                navigate_google: 'Google Maps',
-                navigate_waze: 'Waze'
+                no_pon_risk: 'Aucun groupe à risque', months_unit: 'mois', more_than_year: 'Plus d\'un an',
+                print_title: 'AT-FiberPredict - Rapport de maintenance prédictive', print_date: 'Date du rapport :',
+                fault_contamination: 'Contamination connecteur', fault_macrobend: 'Macrocourbure',
+                fault_break: 'Rupture de fibre', fault_splice: 'Épissure défectueuse', fault_stable: 'Stable',
+                undefined: 'Indéfini', threshold_label: 'Seuil de danger:', navigate_google: 'Google Maps', navigate_waze: 'Waze'
             },
             en: {
-                subtitle: 'FTTH/GPON Predictive Fault Engine',
-                run_sim: '▶️ Run Simulation',
-                load_repo: '📥 Load Repository Data',
-                upload_csv: '📂 Upload CSV',
-                compare: '🔁 Compare Seeds',
-                export_csv: '📥 Export CSV',
-                print_pdf: '🖨️ PDF Report',
-                seed_label: 'Seed:',
-                seed_hint: 'Same seed = same results',
-                analysis_title: '📊 Analysis Results',
-                pon_title: '📍 PON Risk Distribution',
-                top5_title: 'Top 5 Subscribers',
-                signal_chart_title: '📈 Signal Degradation Curves',
-                roc_title: '📉 ROC Curve',
-                all_subs_title: '📋 All Subscribers',
-                subscriber: 'Subscriber',
-                group: 'Group',
-                last_rx: 'Last Rx',
-                degradation: 'Degradation',
-                predicted_month: 'Predicted Month',
-                cause: 'Probable Cause',
-                risk_score: 'Risk Score',
-                confidence: 'Confidence',
-                category: 'Category',
-                actual_state: 'Actual State',
-                reason: 'Risk Reason',
-                survival: 'Survival Analysis',
-                stable: 'Stable',
-                monitor: 'Monitor',
-                danger: 'Danger',
-                critical: 'Critical',
-                will_fail: '⚠️ Will Fail',
-                is_stable: '✅ Stable',
-                source_sim: 'Simulation',
-                source_csv: 'CSV File',
+                subtitle: 'FTTH/GPON Predictive Fault Engine', run_sim: '▶️ Run Simulation',
+                load_repo: '📥 Load Repository Data', upload_csv: '📂 Upload CSV', compare: '🔁 Compare Seeds',
+                export_csv: '📥 Export CSV', print_pdf: '📄 PDF Report', seed_label: 'Seed:',
+                seed_hint: 'Same seed = same results', analysis_title: '📊 Analysis Results',
+                pon_title: '📍 PON Risk Distribution', top5_title: 'Top 5 Subscribers',
+                signal_chart_title: '📈 Signal Degradation Curves', roc_title: '📉 ROC Curve',
+                all_subs_title: '📋 All Subscribers', subscriber: 'Subscriber', group: 'Group',
+                last_rx: 'Last Rx', degradation: 'Degradation', predicted_month: 'Predicted Month',
+                cause: 'Probable Cause', risk_score: 'Risk Score', confidence: 'Confidence',
+                category: 'Category', actual_state: 'Actual State', reason: 'Risk Reason',
+                survival: 'Survival Analysis', stable: 'Stable', monitor: 'Monitor',
+                danger: 'Danger', critical: 'Critical', will_fail: '⚠️ Will Fail', is_stable: '✅ Stable',
+                source_sim: 'Simulation', source_csv: 'CSV File',
                 summary_text: 'Out of {total} subscribers, {risk} classified as risk. Actual failures: {actual}. True alerts: {tp}, false: {fp}.',
-                no_pon_risk: 'No groups at risk',
-                months_unit: 'months',
-                more_than_year: 'More than a year',
-                print_title: 'AT-FiberPredict - Predictive Maintenance Report',
-                print_date: 'Report Date:',
-                fault_contamination: 'Connector Contamination',
-                fault_macrobend: 'Macrobend',
-                fault_break: 'Fiber Break',
-                fault_splice: 'Bad Splice',
-                fault_stable: 'Stable',
-                undefined: 'Undefined',
-                threshold_label: 'Critical threshold:',
-                navigate_google: 'Google Maps',
-                navigate_waze: 'Waze'
+                no_pon_risk: 'No groups at risk', months_unit: 'months', more_than_year: 'More than a year',
+                print_title: 'AT-FiberPredict - Predictive Maintenance Report', print_date: 'Report Date:',
+                fault_contamination: 'Connector Contamination', fault_macrobend: 'Macrobend',
+                fault_break: 'Fiber Break', fault_splice: 'Bad Splice', fault_stable: 'Stable',
+                undefined: 'Undefined', threshold_label: 'Critical threshold:', navigate_google: 'Google Maps', navigate_waze: 'Waze'
             }
         };
 
@@ -493,7 +389,7 @@
             return subscribers;
         }
 
-        // ==================== REPOSITORY DATA GENERATOR (realistic with noise) ====================
+        // ==================== REPOSITORY DATA GENERATOR ====================
         function generateRepositorySubscribers(seed) {
             const rand = mulberry32(seed);
             const subscribers = [];
@@ -505,11 +401,8 @@
                 const isFailure = failureIds.has(i);
                 let rx = -18 - rand() * 7;
                 let degradationRate;
-                if (isFailure) {
-                    degradationRate = 0.35 + rand() * 0.7;
-                } else {
-                    degradationRate = rand() * 0.3;
-                }
+                if (isFailure) degradationRate = 0.35 + rand() * 0.7;
+                else degradationRate = rand() * 0.3;
                 const history = [];
                 let current = rx;
                 const seasonalPattern = [0.05,-0.03,0.02,-0.05,0.04,-0.02,0.03,-0.04];
@@ -528,11 +421,8 @@
                     futureRx -= degradationRate * (0.8 + rand() * 0.4);
                     if (futureRx <= CRITICAL_THRESHOLD) { futureFailure = true; break; }
                 }
-                if (isFailure) {
-                    futureFailure = rand() < 0.85;
-                } else {
-                    futureFailure = futureFailure || rand() < 0.1;
-                }
+                if (isFailure) futureFailure = rand() < 0.85;
+                else futureFailure = futureFailure || rand() < 0.1;
                 const fiberLengthKm = 2 + rand() * 8;
                 const helixFactor = 1.02 + rand() * 0.06;
                 const oltLat = cityCoords[Math.floor(rand() * cityCoords.length)][0] + (rand() - 0.5) * 0.02;
@@ -552,18 +442,9 @@
                 else baseFaultPct = 0.85;
                 const actualFaultPositionPct = Math.min(0.98, Math.max(0.02, baseFaultPct + (rand() - 0.5) * 0.4));
                 subscribers.push({
-                    id: i,
-                    groupId,
-                    history,
-                    actualRx: lastRx,
-                    actualFailure: futureFailure,
-                    degradationRate,
-                    faultType: isFailure ? (rand() < 0.4 ? 'CONTAMINATION' : rand() < 0.6 ? 'MACROBEND' : 'BREAK') : 'STABLE',
-                    fiberLengthKm,
-                    helixFactor,
-                    oltCoords: [oltLat, oltLng],
-                    onuCoords: [onuLat, onuLng],
-                    actualFaultPositionPct
+                    id: i, groupId, history, actualRx: lastRx, actualFailure: futureFailure,
+                    degradationRate, faultType: isFailure ? (rand() < 0.4 ? 'CONTAMINATION' : rand() < 0.6 ? 'MACROBEND' : 'BREAK') : 'STABLE',
+                    fiberLengthKm, helixFactor, oltCoords: [oltLat, oltLng], onuCoords: [onuLat, onuLng], actualFaultPositionPct
                 });
             }
             return subscribers;
@@ -588,7 +469,7 @@
             const lines = text.trim().split('\n');
             if (lines.length < 2) { alert('Empty file'); return; }
             const headers = lines[0].split(',').map(h => h.trim());
-            const required = ['subscriber_id','month_1','month_2','month_3','month_4','month_5','month_6','month_7','month_8','actual_failure','fiber_length_km','helix_factor','fault_position_pct'];
+            const required = ['subscriber_id','month_1','month_2','month_3','month_4','month_5','month_6','month_7','month_8','actual_failure'];
             const missing = required.filter(r => !headers.includes(r));
             if (missing.length > 0) { alert('Missing columns: ' + missing.join(', ')); return; }
             const subscribers = [];
@@ -599,9 +480,9 @@
                 const history = [];
                 for (let m = 1; m <= MONTHS_HISTORY; m++) history.push(parseFloat(cols[headers.indexOf('month_' + m)]));
                 const actualFailure = parseInt(cols[headers.indexOf('actual_failure')]) === 1;
-                const fiberLengthKm = parseFloat(cols[headers.indexOf('fiber_length_km')]) || 5;
-                const helixFactor = parseFloat(cols[headers.indexOf('helix_factor')]) || 1.04;
-                const actualFaultPositionPct = parseFloat(cols[headers.indexOf('fault_position_pct')]) || 0.5;
+                const fiberLengthKm = headers.includes('fiber_length_km') ? (parseFloat(cols[headers.indexOf('fiber_length_km')]) || 5) : 5;
+                const helixFactor = headers.includes('helix_factor') ? (parseFloat(cols[headers.indexOf('helix_factor')]) || 1.04) : 1.04;
+                const actualFaultPositionPct = headers.includes('fault_position_pct') ? (parseFloat(cols[headers.indexOf('fault_position_pct')]) || 0.5) : 0.5;
                 subscribers.push({ id, groupId: 'غير محدد', history, actualRx: history[history.length-1], actualFailure, degradationRate: 0, faultType: 'غير محدد', fiberLengthKm, helixFactor, oltCoords: [33.6831,1.0193], onuCoords: [33.7120,1.0450], actualFaultPositionPct });
             }
             subscribers.forEach(sub => {
@@ -701,42 +582,24 @@
                 const predictedRx = intercept + slope * (MONTHS_HISTORY + m);
                 survivalProbabilities.push(survivalProbability(predictedRx).toFixed(2));
             }
-
             const diffs = [];
             for (let i = 1; i < subscriber.history.length; i++) diffs.push(subscriber.history[i-1] - subscriber.history[i]);
             const avgDrop = subscriber.degradationRate || 0;
             const stdDrop = diffs.length > 0 ? Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / diffs.length) : 0;
             const lastDrop = diffs.length > 0 ? diffs[diffs.length - 1] : 0;
-
             let predictedFaultPct;
             if (anomaly || lastDrop > 2.0) predictedFaultPct = 0.85;
             else if (stdDrop > 0.25) predictedFaultPct = 0.55;
             else if (Math.abs(slope) > 0.4) predictedFaultPct = 0.70;
             else if (Math.abs(slope) > 0.15) predictedFaultPct = 0.75;
             else predictedFaultPct = 0.85;
-
             const predictedFiberKm = predictedFaultPct * subscriber.fiberLengthKm;
             const predictedCableKm = predictedFiberKm / subscriber.helixFactor;
             const uncertaintyMeters = (0.15 * subscriber.fiberLengthKm * 1000);
-
             const actualFiberKm = subscriber.actualFaultPositionPct * subscriber.fiberLengthKm;
             const errorKm = Math.abs(predictedFiberKm - actualFiberKm);
             const errorMeters = errorKm * 1000;
-
-            return {
-                slope,
-                predictedMonths: monthsToCritical,
-                riskScore,
-                warning,
-                anomaly,
-                confidence,
-                survivalProbabilities,
-                predictedFaultPct,
-                predictedFiberKm,
-                predictedCableKm,
-                errorMeters,
-                uncertaintyMeters
-            };
+            return { slope, predictedMonths: monthsToCritical, riskScore, warning, anomaly, confidence, survivalProbabilities, predictedFaultPct, predictedFiberKm, predictedCableKm, errorMeters, uncertaintyMeters };
         }
 
         function classifyRisk(pred) {
@@ -766,13 +629,10 @@
                 else if (!actual && !pred) tn++;
                 else if (actual && !pred) fn++;
             });
-            return {
-                tp, fp, tn, fn,
-                precision: tp/(tp+fp)||0,
-                recall: tp/(tp+fn)||0,
+            return { tp, fp, tn, fn,
+                precision: tp/(tp+fp)||0, recall: tp/(tp+fn)||0,
                 f1: 2*(tp/(tp+fp)||0)*(tp/(tp+fn)||0)/((tp/(tp+fp)||0)+(tp/(tp+fn)||0))||0,
-                accuracy: (tp+tn)/(tp+tn+fp+fn)
-            };
+                accuracy: (tp+tn)/(tp+tn+fp+fn) };
         }
         function computeROC(subscribers, predictions) {
             const sorted = subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore - predictions[a].riskScore);
@@ -795,14 +655,9 @@
         // ==================== NAVIGATION ====================
         function openNavigation(lat, lng, type) {
             let url = '';
-            if (type === 'google') {
-                url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-            } else if (type === 'waze') {
-                url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-            }
-            if (url) {
-                window.open(url, '_blank');
-            }
+            if (type === 'google') url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+            else if (type === 'waze') url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+            if (url) window.open(url, '_blank');
         }
 
         // ==================== GIS ====================
@@ -820,14 +675,7 @@
                 const pred = window.lastResults.predictions[idx];
                 const faultLat = sub.oltCoords[0] + pred.predictedFaultPct * (sub.onuCoords[0] - sub.oltCoords[0]);
                 const faultLng = sub.oltCoords[1] + pred.predictedFaultPct * (sub.onuCoords[1] - sub.oltCoords[1]);
-                const marker = L.circleMarker([faultLat, faultLng], {
-                    radius: 6,
-                    color: '#d81b60',
-                    fillColor: '#f48fb1',
-                    fillOpacity: 0.9
-                }).addTo(gisMapInstance);
-
-                // Popup with threshold and navigation buttons
+                const marker = L.circleMarker([faultLat, faultLng], { radius: 6, color: '#d81b60', fillColor: '#f48fb1', fillOpacity: 0.9 }).addTo(gisMapInstance);
                 marker.bindPopup(`
                     <b>${t('subscriber')} ${sub.id}</b><br>
                     ${t('last_rx')}: ${sub.history[sub.history.length-1].toFixed(2)} dBm<br>
@@ -840,7 +688,6 @@
                         <button class="nav-btn" onclick="openNavigation(${faultLat}, ${faultLng}, 'waze')">${t('navigate_waze')}</button>
                     </div>
                 `);
-
                 marker.on('click', () => {
                     const row = document.getElementById(`row-${sub.id}`);
                     if (row) {
@@ -849,7 +696,6 @@
                         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
                 });
-
                 L.polyline([sub.oltCoords, sub.onuCoords], {color: '#00acc1', weight: 2, dashArray: '4 4'}).addTo(gisMapInstance);
             });
         }
@@ -861,8 +707,7 @@
             ctx.clearRect(0,0,W,H);
             const padding = 30;
             const lineY = H/2;
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(padding, lineY); ctx.lineTo(W-padding, lineY); ctx.stroke();
             ctx.fillStyle = '#0f172a'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'center';
             ctx.fillText('OLT', padding, lineY - 10);
@@ -1079,10 +924,221 @@
             link.download = 'AT-FiberPredict_Results.csv';
             link.click();
         }
-        function printReport() {
-            if (!window.lastResults) { alert('Please run analysis first'); return; }
-            document.getElementById('printDate').innerText = new Date().toLocaleString();
-            window.print();
+
+        // ==================== PDF REPORT (PROFESSIONAL) ====================
+        async function printReport() {
+            if (!window.lastResults) { 
+                alert('يرجى تشغيل التحليل أولاً'); 
+                return; 
+            }
+            
+            const { subscribers, predictions, categories, metrics, roc } = window.lastResults;
+            
+            // عرض رسالة تحميل
+            const loadingMsg = document.createElement('div');
+            loadingMsg.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1e3a8a;color:white;padding:15px 30px;border-radius:10px;z-index:99999;font-weight:bold;box-shadow:0 4px 15px rgba(0,0,0,0.3);';
+            loadingMsg.textContent = '⏳ جاري إنشاء تقرير PDF...';
+            document.body.appendChild(loadingMsg);
+            
+            try {
+                // حساب متوسط الخطأ المكاني
+                let totalError = 0, countError = 0;
+                subscribers.forEach((sub, i) => {
+                    if (isPositiveRisk(categories[i]) && sub.actualFailure) {
+                        totalError += predictions[i].errorMeters;
+                        countError++;
+                    }
+                });
+                const avgErrorMeters = countError > 0 ? totalError / countError : 0;
+                
+                // التقاط الرسوم البيانية كصور
+                const signalImg = document.getElementById('signalChart').toDataURL('image/png');
+                const rocImg = document.getElementById('rocChart').toDataURL('image/png');
+                const longImg = document.getElementById('longitudinalChart').toDataURL('image/png');
+                
+                // بناء التقرير
+                const sorted = subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore - predictions[a].riskScore);
+                const top5 = sorted.slice(0,5);
+                
+                let top5Rows = '';
+                top5.forEach(idx => {
+                    const sub = subscribers[idx];
+                    const pred = predictions[idx];
+                    const cat = categories[idx];
+                    const bgColor = sub.actualFailure ? '#fee2e2' : '#f8fafc';
+                    top5Rows += `
+                        <tr style="background:${bgColor};">
+                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;">${sub.id}</td>
+                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;">${sub.history[sub.history.length-1].toFixed(2)} dBm</td>
+                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;">${sub.degradationRate.toFixed(3)} dB/شهر</td>
+                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;">${cat}</td>
+                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;color:${sub.actualFailure ? '#b91c1c' : '#166534'};font-weight:bold;">${sub.actualFailure ? '⚠️ سيتعطل' : '✅ مستقر'}</td>
+                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;">${pred.errorMeters.toFixed(0)} م</td>
+                        </tr>
+                    `;
+                });
+                
+                let recommendationsHtml = '';
+                top5.forEach(idx => {
+                    const sub = subscribers[idx];
+                    const pred = predictions[idx];
+                    recommendationsHtml += `
+                        <div style="margin-bottom:10px;padding:10px;background:white;border-right:4px solid #d81b60;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                            <strong style="color:#1e3a8a;">مشترك ${sub.id}:</strong>
+                            <span style="color:#334155;">يُنصح بفحص المنطقة قرب <b>${pred.predictedFiberKm.toFixed(2)} كم</b> (${translateFaultType(sub.faultType)}) — توقع العطل خلال ${pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1) + ' شهر' : 'أكثر من سنة'}</span>
+                        </div>
+                    `;
+                });
+                
+                const reportHTML = `
+                    <div style="width:794px;background:white;padding:40px;font-family:'Tajawal',sans-serif;direction:rtl;color:#0f172a;box-sizing:border-box;">
+                        
+                        <!-- الترويسة -->
+                        <div style="text-align:center;border-bottom:4px solid #1e3a8a;padding-bottom:20px;margin-bottom:25px;">
+                            <h1 style="color:#1e3a8a;font-size:32px;margin:0 0 8px 0;font-weight:800;">🧠 AT-FiberPredict</h1>
+                            <p style="color:#64748b;font-size:16px;margin:0;">تقرير التنبؤ الوقائي لأعطال شبكات FTTH/GPON</p>
+                            <p style="font-size:12px;color:#94a3b8;margin:10px 0 0 0;">تاريخ التقرير: ${new Date().toLocaleString('ar-DZ')} | المصدر: ${window.dataSource === 'csv' ? 'ملف CSV' : 'محاكاة'}</p>
+                        </div>
+                        
+                        <!-- المقاييس -->
+                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">1. المقاييس الرئيسية</h2>
+                        <table style="width:100%;border-collapse:collapse;margin-bottom:25px;font-size:13px;">
+                            <tr style="background:#e0f7fa;color:#006064;font-weight:bold;">
+                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">المشتركين</td>
+                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">الأعطال الفعلية</td>
+                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">Precision</td>
+                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">Recall</td>
+                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">F1-Score</td>
+                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">Accuracy</td>
+                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">AUC</td>
+                            </tr>
+                            <tr style="background:white;">
+                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#1e3a8a;">${subscribers.length}</td>
+                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#d81b60;">${metrics.tp + metrics.fn}</td>
+                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(metrics.precision*100).toFixed(1)}%</td>
+                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(metrics.recall*100).toFixed(1)}%</td>
+                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(metrics.f1*100).toFixed(1)}%</td>
+                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(metrics.accuracy*100).toFixed(1)}%</td>
+                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(roc.auc*100).toFixed(1)}%</td>
+                            </tr>
+                        </table>
+                        
+                        <div style="background:#f0f9ff;padding:12px;border-radius:8px;border-right:4px solid #00acc1;margin-bottom:25px;font-size:13px;">
+                            <b>متوسط الخطأ المكاني:</b> ${avgErrorMeters.toFixed(1)} متر
+                        </div>
+                        
+                        <!-- أخطر 5 -->
+                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">2. أخطر 5 مشتركين</h2>
+                        <table style="width:100%;border-collapse:collapse;margin-bottom:25px;font-size:12px;">
+                            <thead>
+                                <tr style="background:#1e3a8a;color:white;">
+                                    <th style="padding:10px;border:1px solid #cbd5e1;">المشترك</th>
+                                    <th style="padding:10px;border:1px solid #cbd5e1;">آخر Rx</th>
+                                    <th style="padding:10px;border:1px solid #cbd5e1;">التدهور</th>
+                                    <th style="padding:10px;border:1px solid #cbd5e1;">التصنيف</th>
+                                    <th style="padding:10px;border:1px solid #cbd5e1;">الحالة الفعلية</th>
+                                    <th style="padding:10px;border:1px solid #cbd5e1;">خطأ المسافة</th>
+                                </tr>
+                            </thead>
+                            <tbody>${top5Rows}</tbody>
+                        </table>
+                        
+                        <!-- منحنى ROC -->
+                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">3. منحنى ROC</h2>
+                        <div style="text-align:center;margin-bottom:25px;">
+                            <img src="${rocImg}" style="max-width:500px;width:100%;border:1px solid #e2e8f0;border-radius:8px;" />
+                        </div>
+                        
+                        <!-- منحنيات التدهور -->
+                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">4. منحنيات تدهور الإشارة</h2>
+                        <div style="text-align:center;margin-bottom:25px;">
+                            <img src="${signalImg}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px;" />
+                        </div>
+                        
+                        <!-- المخطط الطولي -->
+                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">5. المخطط الطولي للمسار</h2>
+                        <div style="text-align:center;margin-bottom:25px;">
+                            <img src="${longImg}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px;" />
+                        </div>
+                        
+                        <!-- التوصيات -->
+                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">6. التوصيات الفنية</h2>
+                        <div style="background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:25px;">
+                            ${recommendationsHtml}
+                        </div>
+                        
+                        <!-- التوقيعات -->
+                        <div style="margin-top:40px;padding-top:20px;border-top:2px dashed #cbd5e1;display:flex;justify-content:space-between;">
+                            <div style="text-align:center;width:45%;">
+                                <p style="font-weight:bold;color:#1e3a8a;margin-bottom:60px;">توقيع التقني المسؤول</p>
+                                <p style="border-top:1px solid #0f172a;padding-top:8px;">&nbsp;</p>
+                            </div>
+                            <div style="text-align:center;width:45%;">
+                                <p style="font-weight:bold;color:#1e3a8a;margin-bottom:60px;">توقيع وخاتم المشرف</p>
+                                <p style="border-top:1px solid #0f172a;padding-top:8px;">&nbsp;</p>
+                            </div>
+                        </div>
+                        
+                        <!-- التذييل -->
+                        <div style="margin-top:30px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:15px;">
+                            تم إنشاء هذا التقرير تلقائياً بواسطة منصة AT-FiberPredict — النتائج مبنية على معايير ITU-T G.984 و G.652
+                        </div>
+                    </div>
+                `;
+                
+                // إنشاء حاوية مؤقتة للتصوير
+                const tempDiv = document.createElement('div');
+                tempDiv.style.cssText = 'position:fixed;top:-10000px;left:0;z-index:-1;';
+                tempDiv.innerHTML = reportHTML;
+                document.body.appendChild(tempDiv);
+                
+                // انتظار تحميل الصور
+                await new Promise(r => setTimeout(r, 800));
+                
+                // تحويل HTML إلى صورة
+                const canvas = await html2canvas(tempDiv.firstElementChild, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    useCORS: true,
+                    logging: false,
+                    windowWidth: 794
+                });
+                
+                // إزالة الحاوية
+                document.body.removeChild(tempDiv);
+                
+                // إنشاء PDF
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const imgData = canvas.toDataURL('image/jpeg', 0.92);
+                const imgWidth = pdfWidth;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                let heightLeft = imgHeight;
+                let position = 0;
+                
+                pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pdfHeight;
+                
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pdfHeight;
+                }
+                
+                pdf.save(`AT-FiberPredict_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+                
+                document.body.removeChild(loadingMsg);
+                alert('✅ تم إنشاء التقرير بنجاح!');
+                
+            } catch (err) {
+                console.error('PDF error:', err);
+                if (document.body.contains(loadingMsg)) document.body.removeChild(loadingMsg);
+                alert('حدث خطأ أثناء إنشاء PDF: ' + err.message);
+            }
         }
 
         // ==================== INIT ====================
