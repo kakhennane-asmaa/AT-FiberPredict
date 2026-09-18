@@ -1,1157 +1,949 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" id="html-root">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AT-FiberPredict - Predictive FTTH</title>
-    <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#f0f9ff" />
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <style>
-        :root {
-            --bg-base: #f4faff; --glass-bg: rgba(255,255,255,0.55);
-            --glass-border: rgba(255,255,255,0.8); --glass-blur: blur(20px);
-            --text-primary: #0f172a; --text-secondary: #334155;
-            --primary-cyan: #00acc1; --primary-cyan-light: #e0f7fa;
-            --primary-purple: #8e24aa; --primary-purple-light: #f3e5f5;
-            --primary-green: #43a047; --primary-green-light: #e8f5e9;
-            --primary-orange: #fb8c00; --primary-orange-light: #fff3e0;
-            --primary-pink: #d81b60; --primary-pink-light: #fce4ec;
-            --card-shadow: 0 8px 32px rgba(0,0,0,0.08);
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Tajawal', sans-serif;
-            background-color: var(--bg-base);
-            background-image: 
-                radial-gradient(circle at 10% 20%, rgba(255,255,255,0.9) 0%, transparent 35%),
-                radial-gradient(circle at 90% 80%, rgba(224,247,250,0.8) 0%, transparent 40%),
-                radial-gradient(circle at 50% 50%, rgba(179,229,252,0.15) 0%, transparent 70%),
-                url("data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3CradialGradient id='g' cx='30%25' cy='30%25' r='60%25'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.95'/%3E%3Cstop offset='50%25' stop-color='%23e0f7fa' stop-opacity='0.75'/%3E%3Cstop offset='100%25' stop-color='%23b3e5fc' stop-opacity='0.35'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='24' cy='24' r='18' fill='url(%23g)' stroke='%23ffffff' stroke-opacity='0.65' stroke-width='0.8'/%3E%3Ccircle cx='24' cy='24' r='10' fill='%23ffffff' fill-opacity='0.35'/%3E%3Ccircle cx='18' cy='18' r='4' fill='%23ffffff' fill-opacity='0.9'/%3E%3C/svg%3E");
-            background-size: 48px 48px;
-            color: var(--text-primary); padding: 20px; min-height: 100vh;
-        }
-        .app-header { text-align: center; margin-bottom: 30px; }
-        .app-header h1 { color: #0f172a; font-size: 36px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        .app-header p { color: var(--text-secondary); font-size: 18px; }
-        .language-selector { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
-        .lang-btn {
-            background-color: rgba(255,255,255,0.6); backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.9); color: var(--text-primary);
-            border-radius: 8px; padding: 8px 18px; font-size: 14px; font-weight: 700;
-            cursor: pointer; transition: all 0.3s ease; text-transform: uppercase;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
-        }
-        .lang-btn:hover { background-color: var(--primary-cyan-light); border-color: var(--primary-cyan); color: #006064; box-shadow: 0 0 12px rgba(0,172,193,0.3); }
-        .lang-btn.active { background-color: var(--primary-cyan); color: white; border-color: var(--primary-cyan); box-shadow: 0 0 16px rgba(0,172,193,0.5); }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .card {
-            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border); border-radius: 16px; box-shadow: var(--card-shadow);
-            padding: 20px; margin-bottom: 20px; transition: box-shadow 0.3s ease;
-        }
-        .card:hover { box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
-        .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
-        .btn {
-            background-color: rgba(255,255,255,0.7); color: var(--text-primary);
-            border: 1px solid rgba(255,255,255,0.9); border-radius: 12px;
-            padding: 12px 20px; font-size: 15px; font-weight: 700; cursor: pointer;
-            transition: all 0.3s ease; min-width: 140px; display: inline-flex;
-            align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-        .btn:hover { background-color: var(--primary-cyan-light); border-color: var(--primary-cyan); color: #006064; box-shadow: 0 0 18px rgba(0,172,193,0.35); transform: translateY(-2px); }
-        .btn-outline { background-color: rgba(255,255,255,0.5); color: #6a1b9a; border-color: #e1bee7; }
-        .btn-outline:hover { background-color: var(--primary-purple-light); border-color: var(--primary-purple); color: #4a148c; box-shadow: 0 0 18px rgba(142,36,170,0.3); }
-        .btn-success { background-color: rgba(255,255,255,0.5); color: #1b5e20; border-color: #c8e6c9; }
-        .btn-success:hover { background-color: var(--primary-green-light); border-color: var(--primary-green); color: #1b5e20; box-shadow: 0 0 18px rgba(67,160,71,0.3); }
-        .btn-warning { background-color: rgba(255,255,255,0.5); color: #e65100; border-color: #ffe0b2; }
-        .btn-warning:hover { background-color: var(--primary-orange-light); border-color: var(--primary-orange); color: #bf360c; box-shadow: 0 0 18px rgba(251,140,0,0.3); }
-        .file-label {
-            background-color: rgba(255,255,255,0.5); color: #e65100; border: 1px solid #ffe0b2;
-            border-radius: 12px; padding: 12px 20px; font-size: 15px; font-weight: 700;
-            cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
-            transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-        .file-label:hover { background-color: var(--primary-orange-light); border-color: var(--primary-orange); color: #bf360c; box-shadow: 0 0 18px rgba(251,140,0,0.3); }
-        input[type="file"] { display: none; }
-        .seed-box { text-align: center; margin-bottom: 15px; }
-        .seed-box input {
-            padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.9);
-            background: rgba(255,255,255,0.8); color: var(--text-primary); width: 90px;
-            text-align: center; font-size: 16px; font-weight: 700;
-        }
-        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 20px 0; }
-        .metric-card {
-            background: rgba(255,255,255,0.6); backdrop-filter: blur(5px);
-            border: 1px solid rgba(255,255,255,0.9); border-radius: 10px;
-            padding: 15px; text-align: center; transition: all 0.3s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.03);
-        }
-        .metric-card:hover { border-color: var(--primary-cyan); box-shadow: 0 0 20px rgba(0,172,193,0.2); transform: scale(1.02); }
-        .metric-card .value { font-size: 26px; font-weight: 800; color: #006064; text-shadow: 0 0 6px rgba(0,172,193,0.2); }
-        .metric-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
-        table {
-            width: 100%; border-collapse: collapse; margin-top: 15px;
-            background: rgba(255,255,255,0.6); border-radius: 8px; overflow: hidden;
-        }
-        th, td { padding: 10px; text-align: center; font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.05); }
-        th { background-color: #e0f7fa; color: #006064; font-weight: 700; }
-        tr:hover td { background-color: rgba(224,247,250,0.4); }
-        .alert { background-color: #ffebee; color: #b71c1c; padding: 6px; border-radius: 6px; font-weight: 700; }
-        .safe { background-color: #e8f5e9; color: #1b5e20; padding: 6px; border-radius: 6px; }
-        .warn { background-color: #fff3e0; color: #e65100; padding: 6px; border-radius: 6px; font-weight: 700; }
-        .monitor { background-color: #e3f2fd; color: #0d47a1; padding: 6px; border-radius: 6px; font-weight: 700; }
-        .critical { background-color: #fce4ec; color: #880e4f; padding: 6px; border-radius: 6px; font-weight: 700; }
-        .survival-box { background: #e0f7fa; border-radius: 6px; padding: 4px; font-size: 12px; color: #006064; }
-        .chart-container { background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.9); border-radius: 12px; padding: 10px; margin-top: 15px; }
-        canvas { background: transparent; display: block; max-width: 100%; }
-        .map-container { background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.9); border-radius: 12px; padding: 5px; margin-top: 15px; height: 350px; }
-        .pon-summary { background: rgba(255,255,255,0.6); border-radius: 10px; padding: 12px; font-size: 14px; line-height: 1.6; color: var(--text-primary); }
-        .highlight-row { background-color: #fff9c4 !important; }
-        .nav-btns { display: flex; gap: 5px; margin-top: 8px; }
-        .nav-btn {
-            background: #1e3a8a; color: white; border: none; border-radius: 6px;
-            padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
-            text-decoration: none; display: inline-block;
-        }
-        .nav-btn:hover { background: #1e40af; }
-        .print-header { display: none; }
-        @media print {
-            body { background: white; color: black; }
-            .card { box-shadow: none; border: 1px solid #ddd; background: white; backdrop-filter: none; }
-            .no-print { display: none; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AT-FiberPredict - Predictive FTTH</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#f0f9ff" />
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--bg-base:#f4faff;--glass-bg:rgba(255,255,255,0.55);--glass-border:rgba(255,255,255,0.8);--glass-blur:blur(20px);--text-primary:#0f172a;--text-secondary:#334155;--primary-cyan:#00acc1;--primary-cyan-light:#e0f7fa;--primary-purple:#8e24aa;--primary-green:#43a047;--primary-orange:#fb8c00;--primary-pink:#d81b60;--card-shadow:0 8px 32px rgba(0,0,0,0.08)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Tajawal',sans-serif;background-color:var(--bg-base);background-image:radial-gradient(circle at 10% 20%,rgba(255,255,255,0.9) 0%,transparent 35%),radial-gradient(circle at 90% 80%,rgba(224,247,250,0.8) 0%,transparent 40%),url("data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3CradialGradient id='g' cx='30%25' cy='30%25' r='60%25'%3E%3Cstop offset='0%25' stop-color='%23ffffff' stop-opacity='0.95'/%3E%3Cstop offset='100%25' stop-color='%23b3e5fc' stop-opacity='0.35'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='24' cy='24' r='18' fill='url(%23g)' stroke='%23ffffff' stroke-opacity='0.65' stroke-width='0.8'/%3E%3C/svg%3E");background-size:48px 48px;color:var(--text-primary);padding:20px;min-height:100vh}
+.app-header{text-align:center;margin-bottom:30px}
+.app-header h1{color:#0f172a;font-size:36px;font-weight:800;letter-spacing:1px}
+.app-header p{color:var(--text-secondary);font-size:18px}
+.language-selector{display:flex;justify-content:center;gap:10px;margin-bottom:25px}
+.lang-btn{background-color:rgba(255,255,255,0.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.9);color:var(--text-primary);border-radius:8px;padding:8px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.3s ease;text-transform:uppercase}
+.lang-btn:hover{background-color:var(--primary-cyan-light);border-color:var(--primary-cyan);color:#006064}
+.lang-btn.active{background-color:var(--primary-cyan);color:white;border-color:var(--primary-cyan)}
+.container{max-width:1200px;margin:0 auto}
+.card{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-radius:16px;box-shadow:var(--card-shadow);padding:20px;margin-bottom:20px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center}
+.btn{background-color:rgba(255,255,255,0.7);color:var(--text-primary);border:1px solid rgba(255,255,255,0.9);border-radius:12px;padding:12px 20px;font-size:15px;font-weight:700;cursor:pointer;transition:all 0.3s ease;min-width:140px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{background-color:var(--primary-cyan-light);border-color:var(--primary-cyan);color:#006064;transform:translateY(-2px)}
+.btn-outline{background-color:rgba(255,255,255,0.5);color:#6a1b9a;border-color:#e1bee7}
+.btn-outline:hover{background-color:#f3e5f5;border-color:var(--primary-purple)}
+.btn-success{background-color:rgba(255,255,255,0.5);color:#1b5e20;border-color:#c8e6c9}
+.btn-success:hover{background-color:#e8f5e9;border-color:var(--primary-green)}
+.btn-warning{background-color:rgba(255,255,255,0.5);color:#e65100;border-color:#ffe0b2}
+.btn-warning:hover{background-color:#fff3e0;border-color:var(--primary-orange)}
+.file-label{background-color:rgba(255,255,255,0.5);color:#e65100;border:1px solid #ffe0b2;border-radius:12px;padding:12px 20px;font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+input[type="file"]{display:none}
+.seed-box{text-align:center;margin-bottom:15px}
+.seed-box input{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.9);background:rgba(255,255,255,0.8);color:var(--text-primary);width:90px;text-align:center;font-size:16px;font-weight:700}
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:20px 0}
+.metric-card{background:rgba(255,255,255,0.6);backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,0.9);border-radius:10px;padding:15px;text-align:center;transition:all 0.3s ease}
+.metric-card:hover{border-color:var(--primary-cyan);transform:scale(1.02)}
+.metric-card .value{font-size:26px;font-weight:800;color:#006064}
+.metric-card .label{font-size:13px;color:var(--text-secondary);margin-top:4px}
+.confusion-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:15px 0}
+.confusion-card{background:white;border-radius:8px;padding:12px;text-align:center;border:2px solid #e2e8f0}
+.confusion-card.tp{border-color:#16a34a;background:#f0fdf4}
+.confusion-card.fp{border-color:#fb923c;background:#fff7ed}
+.confusion-card.fn{border-color:#dc2626;background:#fef2f2}
+.confusion-card.tn{border-color:#2563eb;background:#eff6ff}
+.confusion-card .value{font-size:22px;font-weight:800;margin-bottom:4px}
+.confusion-card .label{font-size:12px;color:#334155;font-weight:600}
+table{width:100%;border-collapse:collapse;margin-top:15px;background:rgba(255,255,255,0.6);border-radius:8px;overflow:hidden}
+th,td{padding:10px;text-align:center;font-size:14px;border-bottom:1px solid rgba(0,0,0,0.05)}
+th{background-color:#e0f7fa;color:#006064;font-weight:700}
+tr:hover td{background-color:rgba(224,247,250,0.4)}
+.alert{background-color:#ffebee;color:#b71c1c;padding:6px;border-radius:6px;font-weight:700}
+.safe{background-color:#e8f5e9;color:#1b5e20;padding:6px;border-radius:6px}
+.warn{background-color:#fff3e0;color:#e65100;padding:6px;border-radius:6px;font-weight:700}
+.monitor{background-color:#e3f2fd;color:#0d47a1;padding:6px;border-radius:6px;font-weight:700}
+.critical{background-color:#fce4ec;color:#880e4f;padding:6px;border-radius:6px;font-weight:700}
+.survival-box{background:#e0f7fa;border-radius:6px;padding:4px;font-size:12px;color:#006064}
+.chart-container{background:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.9);border-radius:12px;padding:10px;margin-top:15px}
+canvas{background:transparent;display:block;max-width:100%}
+.map-container{background:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.9);border-radius:12px;padding:5px;margin-top:15px;height:350px}
+.pon-summary{background:rgba(255,255,255,0.6);border-radius:10px;padding:12px;font-size:14px;line-height:1.6}
+.highlight-row{background-color:#fff9c4 !important}
+.nav-btns{display:flex;gap:5px;margin-top:8px}
+.nav-btn{background:#1e3a8a;color:white;border:none;border-radius:6px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
+.nav-btn:hover{background:#1e40af}
+.section-title{color:#1e3a8a;font-size:17px;font-weight:700;border-right:5px solid #00acc1;padding-right:12px;margin:20px 0 12px 0}
+</style>
 </head>
 <body>
-    <div class="app-header">
-        <h1>🧠 AT-FiberPredict</h1>
-        <p data-i18n="subtitle">FTTH/GPON Predictive Fault Engine</p>
-    </div>
+<div class="app-header">
+<h1>🧠 AT-FiberPredict</h1>
+<p data-i18n="subtitle">FTTH/GPON Predictive Fault Engine</p>
+</div>
+<div class="language-selector no-print">
+<button class="lang-btn active" data-lang="ar" onclick="setLanguage('ar')">AR</button>
+<button class="lang-btn" data-lang="fr" onclick="setLanguage('fr')">FR</button>
+<button class="lang-btn" data-lang="en" onclick="setLanguage('en')">EN</button>
+</div>
+<div class="container">
+<div class="card no-print">
+<div class="controls">
+<button class="btn" onclick="runPrediction()" data-i18n="run_sim">▶️ Run Simulation</button>
+<button class="btn btn-outline" onclick="loadRepositoryData()" data-i18n="load_repo">📥 Load Repository Data</button>
+<label class="file-label" for="csvFileInput" data-i18n="upload_csv">📂 Upload CSV</label>
+<input type="file" id="csvFileInput" accept=".csv" onchange="handleCSVFile(event)">
+<button class="btn btn-warning" onclick="testTwentySeeds()" data-i18n="compare">🔁 Test 20 Seeds</button>
+<button class="btn btn-success" onclick="exportCSV()" data-i18n="export_csv">📥 Export CSV</button>
+<button class="btn btn-outline" onclick="printReport()" data-i18n="print_pdf">📄 PDF Report</button>
+</div>
+<div class="seed-box">
+<label for="seedInput" data-i18n="seed_label">Seed:</label>
+<input type="number" id="seedInput" value="42" min="1" max="9999">
+<p class="info" data-i18n="seed_hint">Same seed = same results</p>
+</div>
+</div>
 
-    <div class="language-selector no-print">
-        <button class="lang-btn active" data-lang="ar" onclick="setLanguage('ar')">AR</button>
-        <button class="lang-btn" data-lang="fr" onclick="setLanguage('fr')">FR</button>
-        <button class="lang-btn" data-lang="en" onclick="setLanguage('en')">EN</button>
-    </div>
+<div id="results" class="card">
+<h2 data-i18n="analysis_title">📊 Analysis Results</h2>
+<div id="dataSourceBadge" style="text-align:center;margin-bottom:12px;"></div>
+<div class="metrics-grid" id="metricsBox"></div>
+<p id="summary" style="text-align:center;margin:10px 0;font-size:14px;color:#334155;"></p>
 
-    <div class="container">
-        <div class="card no-print">
-            <div class="controls">
-                <button class="btn" onclick="runPrediction()" data-i18n="run_sim">▶️ Run Simulation</button>
-                <button class="btn btn-outline" onclick="loadRepositoryData()" data-i18n="load_repo">📥 Load Repository Data</button>
-                <label class="file-label" for="csvFileInput" data-i18n="upload_csv">📂 Upload CSV</label>
-                <input type="file" id="csvFileInput" accept=".csv" onchange="handleCSVFile(event)">
-                <button class="btn btn-warning" onclick="compareTwoSeeds()" data-i18n="compare">🔁 Compare Seeds</button>
-                <button class="btn btn-success" onclick="exportCSV()" data-i18n="export_csv">📥 Export CSV</button>
-                <button class="btn btn-outline" onclick="printReport()" data-i18n="print_pdf">📄 PDF Report</button>
-            </div>
-            <div class="seed-box">
-                <label for="seedInput" data-i18n="seed_label">Seed:</label>
-                <input type="number" id="seedInput" value="42" min="1" max="9999">
-                <p class="info" data-i18n="seed_hint">Same seed = same results</p>
-            </div>
-        </div>
+<div class="section-title">Confusion Matrix & Extended Metrics</div>
+<div class="confusion-grid" id="confusionMatrix"></div>
+<div class="metrics-grid" id="extendedMetrics"></div>
 
-        <div id="results" class="card">
-            <h2 data-i18n="analysis_title">📊 Analysis Results</h2>
-            <div class="metrics-grid" id="metricsBox"></div>
-            <p id="summary" class="info" style="text-align:center; margin:10px 0;"></p>
-            <div id="categoryStats" class="metrics-grid"></div>
+<div class="section-title">Category Distribution</div>
+<div class="metrics-grid" id="categoryStats"></div>
 
-            <div id="ponSection">
-                <h3 data-i18n="pon_title">📍 PON Risk Distribution</h3>
-                <div class="pon-summary" id="ponSummary"></div>
-            </div>
+<div id="ponSection">
+<div class="section-title" data-i18n="pon_title">📍 PON Risk Distribution</div>
+<div class="pon-summary" id="ponSummary"></div>
+</div>
 
-            <h3 data-i18n="top5_title">Top 5 Subscribers</h3>
-            <div style="overflow-x:auto;">
-                <table>
-                    <thead id="top5Head"></thead>
-                    <tbody id="topRiskTbody"></tbody>
-                </table>
-            </div>
+<div class="section-title" data-i18n="top5_title">Top 5 Subscribers</div>
+<div style="overflow-x:auto;">
+<table><thead id="top5Head"></thead><tbody id="topRiskTbody"></tbody></table>
+</div>
 
-            <h3>📍 GIS Map - Predicted Fault Locations</h3>
-            <div id="gisMap" class="map-container"></div>
+<div class="section-title">📍 GIS Map - Predicted Fault Locations</div>
+<div id="gisMap" class="map-container"></div>
 
-            <h3>📏 Longitudinal Path View</h3>
-            <div class="chart-container">
-                <canvas id="longitudinalChart" width="700" height="200"></canvas>
-            </div>
+<div class="section-title">📏 Longitudinal Path View</div>
+<div class="chart-container"><canvas id="longitudinalChart" width="700" height="200"></canvas></div>
 
-            <h3 data-i18n="signal_chart_title">📈 Signal Degradation Curves</h3>
-            <div class="chart-container">
-                <canvas id="signalChart" width="700" height="300"></canvas>
-            </div>
+<div class="section-title" data-i18n="signal_chart_title">📈 Signal Degradation Curves</div>
+<div class="chart-container"><canvas id="signalChart" width="700" height="300"></canvas></div>
 
-            <h3 data-i18n="roc_title">📉 ROC Curve</h3>
-            <div class="chart-container">
-                <canvas id="rocChart" width="500" height="300"></canvas>
-            </div>
+<div class="section-title" data-i18n="roc_title">📉 ROC Curve</div>
+<div class="chart-container"><canvas id="rocChart" width="500" height="300"></canvas></div>
 
-            <h3 data-i18n="all_subs_title">📋 All Subscribers</h3>
-            <div style="max-height:400px; overflow-y:auto;">
-                <table>
-                    <thead id="allSubsHead"></thead>
-                    <tbody id="allSubscribersTbody"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+<div class="section-title" data-i18n="all_subs_title">📋 All Subscribers</div>
+<div style="max-height:400px;overflow-y:auto;">
+<table><thead id="allSubsHead"></thead><tbody id="allSubscribersTbody"></tbody></table>
+</div>
+</div>
+</div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // ==================== CONSTANTS ====================
-        const CRITICAL_THRESHOLD = -28.0;
-        const MONTHS_HISTORY = 8;
-        const MONTHS_FUTURE = 3;
-        const NUMBER_OF_SUBSCRIBERS = 200;
-        const NUMBER_OF_PON_GROUPS = 10;
-        let gisMapInstance = null;
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const CRITICAL_THRESHOLD=-28.0;
+const MONTHS_HISTORY=8;
+const MONTHS_FUTURE=3;
+const NUMBER_OF_SUBSCRIBERS=200;
+const NUMBER_OF_PON_GROUPS=10;
+let gisMapInstance=null;
 
-        // ==================== i18n ====================
-        const translations = {
-            ar: {
-                subtitle: 'محرك التنبؤ الوقائي لأعطال FTTH/GPON',
-                run_sim: '▶️ تشغيل المحاكاة',
-                load_repo: '📥 بيانات المستودع',
-                upload_csv: '📂 تحميل CSV',
-                compare: '🔁 مقارنة بذرتين',
-                export_csv: '📥 تصدير CSV',
-                print_pdf: '📄 تقرير PDF',
-                seed_label: 'البذرة:',
-                seed_hint: 'نفس البذرة = نفس النتائج',
-                analysis_title: '📊 نتائج التحليل',
-                pon_title: '📍 توزيع المخاطر عبر مجموعات PON',
-                top5_title: 'أخطر 5 مشتركين',
-                signal_chart_title: '📈 منحنيات تدهور الإشارة',
-                roc_title: '📉 منحنى ROC',
-                all_subs_title: '📋 جميع المشتركين',
-                subscriber: 'المشترك', group: 'المجموعة', last_rx: 'آخر Rx', degradation: 'التدهور',
-                predicted_month: 'الشهر المتوقع', cause: 'السبب المحتمل', risk_score: 'مؤشر الخطورة',
-                confidence: 'الثقة', category: 'التصنيف', actual_state: 'الحالة الفعلية', reason: 'سبب الخطورة',
-                survival: 'تحليل البقاء', stable: 'مستقر', monitor: 'مراقبة', danger: 'خطر', critical: 'حرج',
-                will_fail: '⚠️ سيتعطل', is_stable: '✅ مستقر',
-                source_sim: 'محاكاة افتراضية', source_csv: 'ملف CSV خارجي',
-                summary_text: 'من بين {total} مشترك، تم تصنيف {risk} كحالات خطر/حرج. القيمة الفعلية كانت {actual} عطل حقيقي. الإنذارات الصحيحة: {tp}، الكاذبة: {fp}.',
-                no_pon_risk: 'لا توجد مجموعات معرضة للخطر', months_unit: 'شهر', more_than_year: 'أكثر من سنة',
-                print_title: 'AT-FiberPredict - تقرير التنبؤ الوقائي', print_date: 'تاريخ التقرير:',
-                fault_contamination: 'تلوث موصل', fault_macrobend: 'انحناء حاد', fault_break: 'كسر ليفي',
-                fault_splice: 'لحام رديء', fault_stable: 'مستقر', undefined: 'غير محدد',
-                threshold_label: 'عتبة الخطر:', navigate_google: 'Google Maps', navigate_waze: 'Waze'
-            },
-            fr: {
-                subtitle: 'Moteur prédictif de pannes FTTH/GPON', run_sim: '▶️ Lancer la simulation',
-                load_repo: '📥 Données du dépôt', upload_csv: '📂 Charger CSV', compare: '🔁 Comparer les graines',
-                export_csv: '📥 Exporter CSV', print_pdf: '📄 Rapport PDF', seed_label: 'Graine :',
-                seed_hint: 'Même graine = mêmes résultats', analysis_title: '📊 Résultats de l\'analyse',
-                pon_title: '📍 Répartition des risques PON', top5_title: 'Top 5 des abonnés',
-                signal_chart_title: '📈 Courbes de dégradation', roc_title: '📉 Courbe ROC',
-                all_subs_title: '📋 Tous les abonnés', subscriber: 'Abonné', group: 'Groupe',
-                last_rx: 'Dernier Rx', degradation: 'Dégradation', predicted_month: 'Mois prévu',
-                cause: 'Cause probable', risk_score: 'Score de risque', confidence: 'Confiance',
-                category: 'Catégorie', actual_state: 'État réel', reason: 'Raison du risque',
-                survival: 'Analyse de survie', stable: 'Stable', monitor: 'Surveillance',
-                danger: 'Danger', critical: 'Critique', will_fail: '⚠️ Panne prévue', is_stable: '✅ Stable',
-                source_sim: 'Simulation', source_csv: 'Fichier CSV',
-                summary_text: 'Parmi {total} abonnés, {risk} classés à risque. Réel: {actual} pannes. Alertes correctes: {tp}, fausses: {fp}.',
-                no_pon_risk: 'Aucun groupe à risque', months_unit: 'mois', more_than_year: 'Plus d\'un an',
-                print_title: 'AT-FiberPredict - Rapport de maintenance prédictive', print_date: 'Date du rapport :',
-                fault_contamination: 'Contamination connecteur', fault_macrobend: 'Macrocourbure',
-                fault_break: 'Rupture de fibre', fault_splice: 'Épissure défectueuse', fault_stable: 'Stable',
-                undefined: 'Indéfini', threshold_label: 'Seuil de danger:', navigate_google: 'Google Maps', navigate_waze: 'Waze'
-            },
-            en: {
-                subtitle: 'FTTH/GPON Predictive Fault Engine', run_sim: '▶️ Run Simulation',
-                load_repo: '📥 Load Repository Data', upload_csv: '📂 Upload CSV', compare: '🔁 Compare Seeds',
-                export_csv: '📥 Export CSV', print_pdf: '📄 PDF Report', seed_label: 'Seed:',
-                seed_hint: 'Same seed = same results', analysis_title: '📊 Analysis Results',
-                pon_title: '📍 PON Risk Distribution', top5_title: 'Top 5 Subscribers',
-                signal_chart_title: '📈 Signal Degradation Curves', roc_title: '📉 ROC Curve',
-                all_subs_title: '📋 All Subscribers', subscriber: 'Subscriber', group: 'Group',
-                last_rx: 'Last Rx', degradation: 'Degradation', predicted_month: 'Predicted Month',
-                cause: 'Probable Cause', risk_score: 'Risk Score', confidence: 'Confidence',
-                category: 'Category', actual_state: 'Actual State', reason: 'Risk Reason',
-                survival: 'Survival Analysis', stable: 'Stable', monitor: 'Monitor',
-                danger: 'Danger', critical: 'Critical', will_fail: '⚠️ Will Fail', is_stable: '✅ Stable',
-                source_sim: 'Simulation', source_csv: 'CSV File',
-                summary_text: 'Out of {total} subscribers, {risk} classified as risk. Actual failures: {actual}. True alerts: {tp}, false: {fp}.',
-                no_pon_risk: 'No groups at risk', months_unit: 'months', more_than_year: 'More than a year',
-                print_title: 'AT-FiberPredict - Predictive Maintenance Report', print_date: 'Report Date:',
-                fault_contamination: 'Connector Contamination', fault_macrobend: 'Macrobend',
-                fault_break: 'Fiber Break', fault_splice: 'Bad Splice', fault_stable: 'Stable',
-                undefined: 'Undefined', threshold_label: 'Critical threshold:', navigate_google: 'Google Maps', navigate_waze: 'Waze'
-            }
-        };
+const translations={
+ar:{subtitle:'محرك التنبؤ الوقائي لأعطال FTTH/GPON',run_sim:'▶️ تشغيل المحاكاة',load_repo:'📥 بيانات المستودع',upload_csv:'📂 تحميل CSV',compare:'🔁 اختبار 20 بذرة',export_csv:'📥 تصدير CSV',print_pdf:'📄 تقرير PDF',seed_label:'البذرة:',seed_hint:'نفس البذرة = نفس النتائج',analysis_title:'📊 نتائج التحليل',pon_title:'📍 توزيع المخاطر عبر مجموعات PON',top5_title:'أخطر 5 مشتركين',signal_chart_title:'📈 منحنيات تدهور الإشارة',roc_title:'📉 منحنى ROC',all_subs_title:'📋 جميع المشتركين',subscriber:'المشترك',group:'المجموعة',last_rx:'آخر Rx',degradation:'التدهور',predicted_month:'الشهر المتوقع',cause:'السبب المحتمل',risk_score:'مؤشر الخطورة',confidence:'الثقة',category:'التصنيف',actual_state:'الحالة الفعلية',reason:'سبب الخطورة',survival:'تحليل البقاء',stable:'مستقر',monitor:'مراقبة',danger:'خطر',critical:'حرج',will_fail:'⚠️ سيتعطل',is_stable:'✅ مستقر',source_sim:'محاكاة افتراضية (Synthetic)',source_csv:'ملف CSV خارجي',summary_text:'من بين {total} مشترك، تم تصنيف {risk} كحالات خطر/حرج. القيمة الفعلية كانت {actual} عطل حقيقي. الإنذارات الصحيحة: {tp}، الكاذبة: {fp}.',no_pon_risk:'لا توجد مجموعات معرضة للخطر',months_unit:'شهر',more_than_year:'أكثر من سنة',fault_contamination:'تلوث موصل',fault_macrobend:'انحناء حاد',fault_break:'كسر ليفي',fault_splice:'لحام رديء',fault_stable:'مستقر',undefined:'غير محدد',threshold_label:'عتبة الخطر:',navigate_google:'Google Maps',navigate_waze:'Waze'},
+fr:{subtitle:'Moteur prédictif de pannes FTTH/GPON',run_sim:'▶️ Lancer la simulation',load_repo:'📥 Données du dépôt',upload_csv:'📂 Charger CSV',compare:'🔁 Tester 20 graines',export_csv:'📥 Exporter CSV',print_pdf:'📄 Rapport PDF',seed_label:'Graine :',seed_hint:'Même graine = mêmes résultats',analysis_title:'📊 Résultats',pon_title:'📍 Répartition des risques PON',top5_title:'Top 5 abonnés',signal_chart_title:'📈 Courbes de dégradation',roc_title:'📉 Courbe ROC',all_subs_title:'📋 Tous les abonnés',subscriber:'Abonné',group:'Groupe',last_rx:'Dernier Rx',degradation:'Dégradation',predicted_month:'Mois prévu',cause:'Cause probable',risk_score:'Score risque',confidence:'Confiance',category:'Catégorie',actual_state:'État réel',reason:'Raison',survival:'Survie',stable:'Stable',monitor:'Surveillance',danger:'Danger',critical:'Critique',will_fail:'⚠️ Panne prévue',is_stable:'✅ Stable',source_sim:'Simulation',source_csv:'CSV',summary_text:'Parmi {total}, {risk} à risque. Réel: {actual}. TP: {tp}, FP: {fp}.',no_pon_risk:'Aucun groupe à risque',months_unit:'mois',more_than_year:'Plus d\'un an',fault_contamination:'Contamination',fault_macrobend:'Macrocourbure',fault_break:'Rupture',fault_splice:'Épissure',fault_stable:'Stable',undefined:'Indéfini',threshold_label:'Seuil:',navigate_google:'Google Maps',navigate_waze:'Waze'},
+en:{subtitle:'FTTH/GPON Predictive Fault Engine',run_sim:'▶️ Run Simulation',load_repo:'📥 Load Repository Data',upload_csv:'📂 Upload CSV',compare:'🔁 Test 20 Seeds',export_csv:'📥 Export CSV',print_pdf:'📄 PDF Report',seed_label:'Seed:',seed_hint:'Same seed = same results',analysis_title:'📊 Analysis Results',pon_title:'📍 PON Risk Distribution',top5_title:'Top 5 Subscribers',signal_chart_title:'📈 Signal Degradation Curves',roc_title:'📉 ROC Curve',all_subs_title:'📋 All Subscribers',subscriber:'Subscriber',group:'Group',last_rx:'Last Rx',degradation:'Degradation',predicted_month:'Predicted Month',cause:'Probable Cause',risk_score:'Risk Score',confidence:'Confidence',category:'Category',actual_state:'Actual State',reason:'Risk Reason',survival:'Survival',stable:'Stable',monitor:'Monitor',danger:'Danger',critical:'Critical',will_fail:'⚠️ Will Fail',is_stable:'✅ Stable',source_sim:'Simulation',source_csv:'CSV',summary_text:'Of {total}, {risk} at risk. Actual: {actual}. TP: {tp}, FP: {fp}.',no_pon_risk:'No groups at risk',months_unit:'months',more_than_year:'More than a year',fault_contamination:'Contamination',fault_macrobend:'Macrobend',fault_break:'Fiber Break',fault_splice:'Bad Splice',fault_stable:'Stable',undefined:'Undefined',threshold_label:'Threshold:',navigate_google:'Google Maps',navigate_waze:'Waze'}
+};
 
-        let currentLang = localStorage.getItem('fiberpredict_lang') || 'ar';
+let currentLang=localStorage.getItem('fiberpredict_lang')||'ar';
+function setLanguage(lang){currentLang=lang;localStorage.setItem('fiberpredict_lang',lang);document.getElementById('html-root').lang=lang;document.getElementById('html-root').dir=(lang==='ar')?'rtl':'ltr';document.querySelectorAll('.lang-btn').forEach(btn=>{btn.classList.toggle('active',btn.getAttribute('data-lang')===lang)});document.querySelectorAll('[data-i18n]').forEach(el=>{const key=el.getAttribute('data-i18n');if(translations[lang]&&translations[lang][key])el.textContent=translations[lang][key]});buildTableHeaders();if(window.lastResults)processSubscribers(window.lastResults.subscribers)}
+function t(key){return translations[currentLang][key]||key}
 
-        function setLanguage(lang) {
-            currentLang = lang;
-            localStorage.setItem('fiberpredict_lang', lang);
-            document.getElementById('html-root').lang = lang;
-            document.getElementById('html-root').dir = (lang === 'ar') ? 'rtl' : 'ltr';
-            document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
-            });
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (translations[lang] && translations[lang][key]) {
-                    el.textContent = translations[lang][key];
-                }
-            });
-            buildTableHeaders();
-            if (window.lastResults) processSubscribers(window.lastResults.subscribers);
-        }
+function buildTableHeaders(){
+document.getElementById('top5Head').innerHTML=`<tr><th>${t('subscriber')}</th><th>${t('group')}</th><th>${t('last_rx')}</th><th>${t('degradation')}</th><th>${t('predicted_month')}</th><th>${t('cause')}</th><th>${t('risk_score')}</th><th>${t('confidence')}</th><th>${t('category')}</th><th>${t('actual_state')}</th></tr>`;
+document.getElementById('allSubsHead').innerHTML=`<tr><th>${t('subscriber')}</th><th>${t('group')}</th><th>${t('last_rx')}</th><th>${t('degradation')}</th><th>${t('cause')}</th><th>${t('risk_score')}</th><th>${t('confidence')}</th><th>${t('category')}</th><th>${t('actual_state')}</th><th>${t('reason')}</th><th>${t('survival')}</th><th>خطأ المسافة (م)</th><th>الموقع المتوقع ± عدم اليقين</th></tr>`;
+}
 
-        function t(key) { return translations[currentLang][key] || key; }
+function mulberry32(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 
-        function buildTableHeaders() {
-            document.getElementById('top5Head').innerHTML = `
-                <tr><th>${t('subscriber')}</th><th>${t('group')}</th><th>${t('last_rx')}</th><th>${t('degradation')}</th><th>${t('predicted_month')}</th><th>${t('cause')}</th><th>${t('risk_score')}</th><th>${t('confidence')}</th><th>${t('category')}</th><th>${t('actual_state')}</th></tr>`;
-            document.getElementById('allSubsHead').innerHTML = `
-                <tr><th>${t('subscriber')}</th><th>${t('group')}</th><th>${t('last_rx')}</th><th>${t('degradation')}</th><th>${t('cause')}</th><th>${t('risk_score')}</th><th>${t('confidence')}</th><th>${t('category')}</th><th>${t('actual_state')}</th><th>${t('reason')}</th><th>${t('survival')}</th><th>خطأ المسافة (م)</th><th>الموقع المتوقع ± عدم اليقين</th></tr>`;
-        }
+// ==================== SIMULATION ====================
+function generateSubscribers(rand){
+const subscribers=[];
+const numFailures=Math.floor(NUMBER_OF_SUBSCRIBERS*0.20);
+const failureIds=new Set();
+while(failureIds.size<numFailures)failureIds.add(Math.floor(rand()*NUMBER_OF_SUBSCRIBERS)+1);
+const ponGroupsWithSplitterIssue=new Set();
+const numSplitterIssues=Math.floor(NUMBER_OF_PON_GROUPS*0.2);
+while(ponGroupsWithSplitterIssue.size<numSplitterIssues)ponGroupsWithSplitterIssue.add(Math.floor(rand()*NUMBER_OF_PON_GROUPS)+1);
+const cityCoords=[[33.6831,1.0193],[36.7525,3.0420],[35.6911,-0.6416],[36.3650,6.6147],[36.9000,7.7666]];
 
-        // ==================== SEEDED RANDOM ====================
-        function mulberry32(seed) { let a = seed >>> 0; return function() { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; } }
+for(let i=1;i<=NUMBER_OF_SUBSCRIBERS;i++){
+const groupId=((i-1)%NUMBER_OF_PON_GROUPS)+1;
+const groupHasIssue=ponGroupsWithSplitterIssue.has(groupId);
+let rx=-17-rand()*7;
+let faultType,degradationRate,suddenDrop=false;
+if(failureIds.has(i)||(groupHasIssue&&rand()<0.2)){
+const faultRand=rand();
+if(faultRand<0.3){faultType='CONTAMINATION';degradationRate=0.2+rand()*0.3}
+else if(faultRand<0.55){faultType='MACROBEND';degradationRate=0.5+rand()*0.4;suddenDrop=rand()<0.5}
+else if(faultRand<0.75){faultType='BREAK';degradationRate=0.7+rand()*0.5;suddenDrop=true}
+else{faultType='SPLICE';degradationRate=0.3+rand()*0.4}
+}else{
+if(rand()<0.15){faultType='CONTAMINATION';degradationRate=0.25+rand()*0.25}
+else{faultType='STABLE';degradationRate=rand()*0.15}
+}
 
-        // ==================== SIMULATION ====================
-        function generateSubscribers(rand) {
-            const subscribers = [];
-            const numFailures = Math.floor(NUMBER_OF_SUBSCRIBERS * 0.20);
-            const failureIds = new Set();
-            while (failureIds.size < numFailures) failureIds.add(Math.floor(rand() * NUMBER_OF_SUBSCRIBERS) + 1);
-            const ponGroupsWithSplitterIssue = new Set();
-            const numSplitterIssues = Math.floor(NUMBER_OF_PON_GROUPS * 0.2);
-            while (ponGroupsWithSplitterIssue.size < numSplitterIssues) ponGroupsWithSplitterIssue.add(Math.floor(rand() * NUMBER_OF_PON_GROUPS) + 1);
-            const cityCoords = [[33.6831,1.0193],[36.7525,3.0420],[35.6911,-0.6416],[36.3650,6.6147],[36.9000,7.7666]];
-            for (let i = 1; i <= NUMBER_OF_SUBSCRIBERS; i++) {
-                const groupId = ((i - 1) % NUMBER_OF_PON_GROUPS) + 1;
-                const groupHasIssue = ponGroupsWithSplitterIssue.has(groupId);
-                let rx = -17 - rand() * 7;
-                let faultType, degradationRate, suddenDrop = false;
-                if (failureIds.has(i) || (groupHasIssue && rand() < 0.2)) {
-                    const faultRand = rand();
-                    if (faultRand < 0.3) { faultType = 'CONTAMINATION'; degradationRate = 0.2 + rand() * 0.3; }
-                    else if (faultRand < 0.55) { faultType = 'MACROBEND'; degradationRate = 0.5 + rand() * 0.4; suddenDrop = rand() < 0.5; }
-                    else if (faultRand < 0.75) { faultType = 'BREAK'; degradationRate = 0.7 + rand() * 0.5; suddenDrop = true; }
-                    else { faultType = 'SPLICE'; degradationRate = 0.3 + rand() * 0.4; }
-                } else {
-                    if (rand() < 0.15) { faultType = 'CONTAMINATION'; degradationRate = 0.25 + rand() * 0.25; }
-                    else { faultType = 'STABLE'; degradationRate = rand() * 0.15; }
-                }
-                const city = cityCoords[Math.floor(rand() * cityCoords.length)];
-                const oltLat = city[0] + (rand() - 0.5) * 0.02;
-                const oltLng = city[1] + (rand() - 0.5) * 0.02;
-                const onuLat = oltLat + (rand() - 0.5) * 0.06;
-                const onuLng = oltLng + (rand() - 0.5) * 0.06;
-                const fiberLengthKm = 2 + rand() * 8;
-                const helixFactor = 1.02 + rand() * 0.06;
-                const history = [];
-                let current = rx;
-                const seasonalPattern = [0.05,-0.03,0.02,-0.05,0.04,-0.02,0.03,-0.04];
-                for (let m = 0; m < MONTHS_HISTORY; m++) {
-                    const noise = (rand() - 0.5) * 0.5;
-                    const seasonal = seasonalPattern[m];
-                    history.push(current + noise + seasonal);
-                    if (faultType === 'SPLICE') { if (m % 3 === 0 || m % 2 === 0) current -= degradationRate; }
-                    else if (faultType === 'BREAK') { if (m === MONTHS_HISTORY - 1) current -= 2.5; else current -= degradationRate; }
-                    else if (faultType === 'MACROBEND') { if (suddenDrop && m === 3) current -= 1.5; else current -= degradationRate; }
-                    else current -= degradationRate;
-                }
-                let futureFailure = false;
-                for (let f = 0; f < MONTHS_FUTURE; f++) {
-                    if (faultType === 'SPLICE' && f % 2 === 0) current -= degradationRate;
-                    else if (faultType === 'BREAK' && f === 1) current -= 2.5;
-                    else current -= degradationRate;
-                    const futureNoise = (rand() - 0.5) * 0.3;
-                    const futureSeasonal = seasonalPattern[(MONTHS_HISTORY + f) % seasonalPattern.length];
-                    const futureRx = current + futureNoise + futureSeasonal;
-                    if (futureRx <= CRITICAL_THRESHOLD) { futureFailure = true; break; }
-                }
-                const diffs = [];
-                for (let m = 1; m < history.length; m++) diffs.push(history[m-1] - history[m]);
-                const avgDrop = diffs.reduce((a,b) => a+b, 0) / (diffs.length || 1);
-                const stdDrop = Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / (diffs.length || 1));
-                const lastDrop = diffs.length > 0 ? diffs[diffs.length-1] : 0;
-                let actualFaultPositionPct;
-                if (lastDrop > 2.0) actualFaultPositionPct = 0.85 + rand() * 0.15;
-                else if (stdDrop > 0.25) actualFaultPositionPct = 0.35 + rand() * 0.3;
-                else if (avgDrop > 0.4) actualFaultPositionPct = 0.6 + rand() * 0.3;
-                else if (avgDrop > 0.15) actualFaultPositionPct = 0.75 + rand() * 0.25;
-                else actualFaultPositionPct = rand();
-                subscribers.push({ id: i, groupId, history, actualRx: current, actualFailure: futureFailure, degradationRate, faultType, fiberLengthKm, helixFactor, oltCoords: [oltLat, oltLng], onuCoords: [onuLat, onuLng], actualFaultPositionPct });
-            }
-            return subscribers;
-        }
+// ✅ FIX: اختيار المدينة مرة واحدة
+const cityIdx=Math.floor(rand()*cityCoords.length);
+const oltLat=cityCoords[cityIdx][0]+(rand()-0.5)*0.02;
+const oltLng=cityCoords[cityIdx][1]+(rand()-0.5)*0.02;
+const onuLat=oltLat+(rand()-0.5)*0.06;
+const onuLng=oltLng+(rand()-0.5)*0.06;
 
-        // ==================== REPOSITORY DATA GENERATOR ====================
-        function generateRepositorySubscribers(seed) {
-            const rand = mulberry32(seed);
-            const subscribers = [];
-            const cityCoords = [[33.6831,1.0193],[36.7525,3.0420],[35.6911,-0.6416],[36.3650,6.6147],[36.9000,7.7666]];
-            const failureIds = new Set();
-            while (failureIds.size < 14) failureIds.add(Math.floor(rand() * 50) + 1);
-            for (let i = 1; i <= 50; i++) {
-                const groupId = ((i - 1) % 10) + 1;
-                const isFailure = failureIds.has(i);
-                let rx = -18 - rand() * 7;
-                let degradationRate;
-                if (isFailure) degradationRate = 0.35 + rand() * 0.7;
-                else degradationRate = rand() * 0.3;
-                const history = [];
-                let current = rx;
-                const seasonalPattern = [0.05,-0.03,0.02,-0.05,0.04,-0.02,0.03,-0.04];
-                for (let m = 0; m < MONTHS_HISTORY; m++) {
-                    const noise = (rand() - 0.5) * 0.8;
-                    const seasonal = seasonalPattern[m];
-                    history.push(current + noise + seasonal);
-                    current -= degradationRate;
-                    if (m === 3 && isFailure && rand() < 0.4) current -= 1.0;
-                    if (m === 5 && !isFailure && rand() < 0.15) current -= 0.5;
-                }
-                const lastRx = current;
-                let futureFailure = false;
-                let futureRx = current;
-                for (let f = 0; f < MONTHS_FUTURE; f++) {
-                    futureRx -= degradationRate * (0.8 + rand() * 0.4);
-                    if (futureRx <= CRITICAL_THRESHOLD) { futureFailure = true; break; }
-                }
-                if (isFailure) futureFailure = rand() < 0.85;
-                else futureFailure = futureFailure || rand() < 0.1;
-                const fiberLengthKm = 2 + rand() * 8;
-                const helixFactor = 1.02 + rand() * 0.06;
-                const oltLat = cityCoords[Math.floor(rand() * cityCoords.length)][0] + (rand() - 0.5) * 0.02;
-                const oltLng = cityCoords[Math.floor(rand() * cityCoords.length)][1] + (rand() - 0.5) * 0.02;
-                const onuLat = oltLat + (rand() - 0.5) * 0.06;
-                const onuLng = oltLng + (rand() - 0.5) * 0.06;
-                const diffs = [];
-                for (let m = 1; m < history.length; m++) diffs.push(history[m-1] - history[m]);
-                const avgDrop = degradationRate || 0;
-                const stdDrop = diffs.length > 0 ? Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / diffs.length) : 0;
-                const lastDrop = diffs.length > 0 ? diffs[diffs.length - 1] : 0;
-                let baseFaultPct;
-                if (lastDrop > 2.0) baseFaultPct = 0.85;
-                else if (stdDrop > 0.25) baseFaultPct = 0.55;
-                else if (avgDrop > 0.4) baseFaultPct = 0.70;
-                else if (avgDrop > 0.15) baseFaultPct = 0.75;
-                else baseFaultPct = 0.85;
-                const actualFaultPositionPct = Math.min(0.98, Math.max(0.02, baseFaultPct + (rand() - 0.5) * 0.4));
-                subscribers.push({
-                    id: i, groupId, history, actualRx: lastRx, actualFailure: futureFailure,
-                    degradationRate, faultType: isFailure ? (rand() < 0.4 ? 'CONTAMINATION' : rand() < 0.6 ? 'MACROBEND' : 'BREAK') : 'STABLE',
-                    fiberLengthKm, helixFactor, oltCoords: [oltLat, oltLng], onuCoords: [onuLat, onuLng], actualFaultPositionPct
-                });
-            }
-            return subscribers;
-        }
+const fiberLengthKm=2+rand()*8;
+const helixFactor=1.02+rand()*0.06;
+const history=[];
+let current=rx;
+const seasonalPattern=[0.05,-0.03,0.02,-0.05,0.04,-0.02,0.03,-0.04];
+for(let m=0;m<MONTHS_HISTORY;m++){
+const noise=(rand()-0.5)*0.5;
+const seasonal=seasonalPattern[m];
+history.push(current+noise+seasonal);
+if(faultType==='SPLICE'){if(m%3===0||m%2===0)current-=degradationRate}
+else if(faultType==='BREAK'){if(m===MONTHS_HISTORY-1)current-=2.5;else current-=degradationRate}
+else if(faultType==='MACROBEND'){if(suddenDrop&&m===3)current-=1.5;else current-=degradationRate}
+else current-=degradationRate;
+}
+let futureFailure=false;
+for(let f=0;f<MONTHS_FUTURE;f++){
+if(faultType==='SPLICE'&&f%2===0)current-=degradationRate;
+else if(faultType==='BREAK'&&f===1)current-=2.5;
+else current-=degradationRate;
+const futureNoise=(rand()-0.5)*0.3;
+const futureSeasonal=seasonalPattern[(MONTHS_HISTORY+f)%seasonalPattern.length];
+const futureRx=current+futureNoise+futureSeasonal;
+if(futureRx<=CRITICAL_THRESHOLD){futureFailure=true;break}
+}
+const diffs=[];
+for(let m=1;m<history.length;m++)diffs.push(history[m-1]-history[m]);
+const avgDrop=diffs.reduce((a,b)=>a+b,0)/(diffs.length||1);
+const stdDrop=Math.sqrt(diffs.reduce((a,b)=>a+(b-avgDrop)**2,0)/(diffs.length||1));
+const lastDrop=diffs.length>0?diffs[diffs.length-1]:0;
+let actualFaultPositionPct;
+if(lastDrop>2.0)actualFaultPositionPct=0.85+rand()*0.15;
+else if(stdDrop>0.25)actualFaultPositionPct=0.35+rand()*0.3;
+else if(avgDrop>0.4)actualFaultPositionPct=0.6+rand()*0.3;
+else if(avgDrop>0.15)actualFaultPositionPct=0.75+rand()*0.25;
+else actualFaultPositionPct=rand();
+subscribers.push({id:i,groupId,history,actualRx:current,actualFailure:futureFailure,degradationRate,faultType,fiberLengthKm,helixFactor,oltCoords:[oltLat,oltLng],onuCoords:[onuLat,onuLng],actualFaultPositionPct});
+}
+return subscribers;
+}
 
-        function handleCSVFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => processCSVData(e.target.result);
-            reader.readAsText(file);
-            event.target.value = '';
-        }
+// ==================== REPOSITORY DATA ====================
+function generateRepositorySubscribers(seed){
+const rand=mulberry32(seed);
+const subscribers=[];
+const cityCoords=[[33.6831,1.0193],[36.7525,3.0420],[35.6911,-0.6416],[36.3650,6.6147],[36.9000,7.7666]];
+const failureIds=new Set();
+while(failureIds.size<14)failureIds.add(Math.floor(rand()*50)+1);
+for(let i=1;i<=50;i++){
+const groupId=((i-1)%10)+1;
+const isFailure=failureIds.has(i);
+let rx=-18-rand()*7;
+let degradationRate;
+if(isFailure)degradationRate=0.35+rand()*0.7;
+else degradationRate=rand()*0.3;
+const history=[];
+let current=rx;
+const seasonalPattern=[0.05,-0.03,0.02,-0.05,0.04,-0.02,0.03,-0.04];
+for(let m=0;m<MONTHS_HISTORY;m++){
+const noise=(rand()-0.5)*0.8;
+const seasonal=seasonalPattern[m];
+history.push(current+noise+seasonal);
+current-=degradationRate;
+if(m===3&&isFailure&&rand()<0.4)current-=1.0;
+if(m===5&&!isFailure&&rand()<0.15)current-=0.5;
+}
+const lastRx=current;
+let futureFailure=false;
+let futureRx=current;
+for(let f=0;f<MONTHS_FUTURE;f++){
+futureRx-=degradationRate*(0.8+rand()*0.4);
+if(futureRx<=CRITICAL_THRESHOLD){futureFailure=true;break}
+}
+if(isFailure)futureFailure=rand()<0.85;
+else futureFailure=futureFailure||rand()<0.1;
+const fiberLengthKm=2+rand()*8;
+const helixFactor=1.02+rand()*0.06;
 
-        function loadRepositoryData() {
-            const subscribers = generateRepositorySubscribers(123);
-            window.dataSource = 'csv';
-            processSubscribers(subscribers);
-        }
+// ✅ FIX: نفس الإصلاح هنا
+const cityIdx=Math.floor(rand()*cityCoords.length);
+const oltLat=cityCoords[cityIdx][0]+(rand()-0.5)*0.02;
+const oltLng=cityCoords[cityIdx][1]+(rand()-0.5)*0.02;
+const onuLat=oltLat+(rand()-0.5)*0.06;
+const onuLng=oltLng+(rand()-0.5)*0.06;
 
-        function processCSVData(text) {
-            const lines = text.trim().split('\n');
-            if (lines.length < 2) { alert('Empty file'); return; }
-            const headers = lines[0].split(',').map(h => h.trim());
-            const required = ['subscriber_id','month_1','month_2','month_3','month_4','month_5','month_6','month_7','month_8','actual_failure'];
-            const missing = required.filter(r => !headers.includes(r));
-            if (missing.length > 0) { alert('Missing columns: ' + missing.join(', ')); return; }
-            const subscribers = [];
-            for (let i = 1; i < lines.length; i++) {
-                const cols = lines[i].split(',').map(v => v.trim());
-                if (cols.length < headers.length) continue;
-                const id = parseInt(cols[headers.indexOf('subscriber_id')]);
-                const history = [];
-                for (let m = 1; m <= MONTHS_HISTORY; m++) history.push(parseFloat(cols[headers.indexOf('month_' + m)]));
-                const actualFailure = parseInt(cols[headers.indexOf('actual_failure')]) === 1;
-                const fiberLengthKm = headers.includes('fiber_length_km') ? (parseFloat(cols[headers.indexOf('fiber_length_km')]) || 5) : 5;
-                const helixFactor = headers.includes('helix_factor') ? (parseFloat(cols[headers.indexOf('helix_factor')]) || 1.04) : 1.04;
-                const actualFaultPositionPct = headers.includes('fault_position_pct') ? (parseFloat(cols[headers.indexOf('fault_position_pct')]) || 0.5) : 0.5;
-                subscribers.push({ id, groupId: 'غير محدد', history, actualRx: history[history.length-1], actualFailure, degradationRate: 0, faultType: 'غير محدد', fiberLengthKm, helixFactor, oltCoords: [33.6831,1.0193], onuCoords: [33.7120,1.0450], actualFaultPositionPct });
-            }
-            subscribers.forEach(sub => {
-                const first = sub.history[0], last = sub.history[sub.history.length-1];
-                sub.degradationRate = (first - last) / (MONTHS_HISTORY - 1);
-                sub.faultType = determineRootCause(sub);
-            });
-            window.dataSource = 'csv';
-            processSubscribers(subscribers);
-        }
+const diffs=[];
+for(let m=1;m<history.length;m++)diffs.push(history[m-1]-history[m]);
+const avgDrop=degradationRate||0;
+const stdDrop=diffs.length>0?Math.sqrt(diffs.reduce((a,b)=>a+(b-avgDrop)**2,0)/diffs.length):0;
+const lastDrop=diffs.length>0?diffs[diffs.length-1]:0;
+let baseFaultPct;
+if(lastDrop>2.0)baseFaultPct=0.85;
+else if(stdDrop>0.25)baseFaultPct=0.55;
+else if(avgDrop>0.4)baseFaultPct=0.70;
+else if(avgDrop>0.15)baseFaultPct=0.75;
+else baseFaultPct=0.85;
+const actualFaultPositionPct=Math.min(0.98,Math.max(0.02,baseFaultPct+(rand()-0.5)*0.4));
+subscribers.push({id:i,groupId,history,actualRx:lastRx,actualFailure:futureFailure,degradationRate,faultType:isFailure?(rand()<0.4?'CONTAMINATION':rand()<0.6?'MACROBEND':'BREAK'):'STABLE',fiberLengthKm,helixFactor,oltCoords:[oltLat,oltLng],onuCoords:[onuLat,onuLng],actualFaultPositionPct});
+}
+return subscribers;
+}
 
-        // ==================== ROOT CAUSE ====================
-        function determineRootCause(subscriber) {
-            const h = subscriber.history;
-            const diffs = [];
-            for (let i = 1; i < h.length; i++) diffs.push(h[i-1] - h[i]);
-            if (diffs.length < 3) return 'STABLE';
-            const avgDrop = subscriber.degradationRate || 0;
-            const lastDrop = diffs[diffs.length - 1];
-            const maxDrop = Math.max(...diffs);
-            const minDrop = Math.min(...diffs);
-            const std = Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / diffs.length);
-            if (lastDrop > 2.5 || (lastDrop > 1.5 && lastDrop > 2 * avgDrop)) return 'BREAK';
-            else if (maxDrop > 1.2 && std > 0.4) return 'MACROBEND';
-            else if (std > 0.3 && minDrop < 0.05) return 'SPLICE';
-            else if (avgDrop > 0.15 && std <= 0.3) return 'CONTAMINATION';
-            else return 'STABLE';
-        }
+function handleCSVFile(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=(e)=>processCSVData(e.target.result);reader.readAsText(file);event.target.value=''}
+function loadRepositoryData(){const subscribers=generateRepositorySubscribers(123);window.dataSource='csv';processSubscribers(subscribers)}
 
-        function translateFaultType(faultType) {
-            const mapping = { 'CONTAMINATION':'fault_contamination','MACROBEND':'fault_macrobend','BREAK':'fault_break','SPLICE':'fault_splice','STABLE':'fault_stable','غير محدد':'undefined' };
-            return t(mapping[faultType] || 'undefined');
-        }
+function processCSVData(text){
+const lines=text.trim().split('\n');
+if(lines.length<2){alert('Empty file');return}
+const headers=lines[0].split(',').map(h=>h.trim());
+const required=['subscriber_id','month_1','month_2','month_3','month_4','month_5','month_6','month_7','month_8','actual_failure'];
+const missing=required.filter(r=>!headers.includes(r));
+if(missing.length>0){alert('Missing columns: '+missing.join(', '));return}
+const subscribers=[];
+for(let i=1;i<lines.length;i++){
+const cols=lines[i].split(',').map(v=>v.trim());
+if(cols.length<headers.length)continue;
+const id=parseInt(cols[headers.indexOf('subscriber_id')]);
+const history=[];
+for(let m=1;m<=MONTHS_HISTORY;m++)history.push(parseFloat(cols[headers.indexOf('month_'+m)]));
+const actualFailure=parseInt(cols[headers.indexOf('actual_failure')])===1;
+const fiberLengthKm=headers.includes('fiber_length_km')?(parseFloat(cols[headers.indexOf('fiber_length_km')])||5):5;
+const helixFactor=headers.includes('helix_factor')?(parseFloat(cols[headers.indexOf('helix_factor')])||1.04):1.04;
+const actualFaultPositionPct=headers.includes('fault_position_pct')?(parseFloat(cols[headers.indexOf('fault_position_pct')])||0.5):0.5;
+subscribers.push({id,groupId:'غير محدد',history,actualRx:history[history.length-1],actualFailure,degradationRate:0,faultType:'غير محدد',fiberLengthKm,helixFactor,oltCoords:[33.6831,1.0193],onuCoords:[33.7120,1.0450],actualFaultPositionPct});
+}
+subscribers.forEach(sub=>{const first=sub.history[0],last=sub.history[sub.history.length-1];sub.degradationRate=(first-last)/(MONTHS_HISTORY-1);sub.faultType=determineRootCause(sub)});
+window.dataSource='csv';
+processSubscribers(subscribers);
+}
 
-        // ==================== PREDICTION ====================
-        function smoothSeries(data, windowSize = 3) {
-            const smoothed = [];
-            for (let i = 0; i < data.length; i++) {
-                const start = Math.max(0, i - windowSize + 1);
-                const subset = data.slice(start, i + 1);
-                smoothed.push(subset.reduce((a,b) => a+b, 0) / subset.length);
-            }
-            return smoothed;
-        }
-        function linearRegression(y) {
-            const n = y.length;
-            const x = Array.from({length: n}, (_, i) => i + 1);
-            const sumX = x.reduce((a,b) => a+b, 0);
-            const sumY = y.reduce((a,b) => a+b, 0);
-            const sumXY = x.reduce((a,b,i) => a + b*y[i], 0);
-            const sumX2 = x.reduce((a,b) => a + b*b, 0);
-            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-            const intercept = (sumY - slope * sumX) / n;
-            return { slope, intercept };
-        }
-        function detectTemporalAnomaly(history) {
-            const lastThree = history.slice(-3);
-            if (lastThree.length < 3) return false;
-            const mean = lastThree.reduce((a,b) => a+b, 0) / 3;
-            const variance = lastThree.reduce((a,b) => a + (b-mean)**2, 0) / 3;
-            const std = Math.sqrt(variance);
-            const last = lastThree[2], prev = lastThree[1];
-            return (prev - last) > 2 * std;
-        }
-        function confidenceScore(slope, anomaly, history) {
-            let confidence = 0;
-            const avgSlope = Math.abs(slope);
-            if (avgSlope > 0.5) confidence += 60;
-            else if (avgSlope > 0.3) confidence += 40;
-            else if (avgSlope > 0.15) confidence += 20;
-            if (anomaly) confidence += 20;
-            const lastRx = history[history.length-1];
-            const distance = Math.abs(CRITICAL_THRESHOLD - lastRx);
-            if (distance < 1) confidence += 20;
-            else if (distance < 2) confidence += 10;
-            return Math.min(95, confidence);
-        }
-        function survivalProbability(predictedRx) {
-            const diff = predictedRx - CRITICAL_THRESHOLD;
-            return 1 / (1 + Math.exp(-diff / 1.5));
-        }
+function determineRootCause(subscriber){
+const h=subscriber.history;
+const diffs=[];
+for(let i=1;i<h.length;i++)diffs.push(h[i-1]-h[i]);
+if(diffs.length<3)return'STABLE';
+const avgDrop=subscriber.degradationRate||0;
+const lastDrop=diffs[diffs.length-1];
+const maxDrop=Math.max(...diffs);
+const minDrop=Math.min(...diffs);
+const std=Math.sqrt(diffs.reduce((a,b)=>a+(b-avgDrop)**2,0)/diffs.length);
+if(lastDrop>2.5||(lastDrop>1.5&&lastDrop>2*avgDrop))return'BREAK';
+else if(maxDrop>1.2&&std>0.4)return'MACROBEND';
+else if(std>0.3&&minDrop<0.05)return'SPLICE';
+else if(avgDrop>0.15&&std<=0.3)return'CONTAMINATION';
+else return'STABLE';
+}
 
-        function predictFailure(subscriber) {
-            const smoothed = smoothSeries(subscriber.history, 3);
-            const { slope, intercept } = linearRegression(smoothed);
-            let monthsToCritical = Infinity;
-            if (slope < 0) monthsToCritical = (CRITICAL_THRESHOLD - intercept) / slope;
-            const lastRx = subscriber.history[subscriber.history.length-1];
-            const distanceToCritical = Math.max(0, CRITICAL_THRESHOLD - lastRx);
-            const anomaly = detectTemporalAnomaly(subscriber.history);
-            let riskScore = Math.min(100, Math.abs(slope) * 60 + distanceToCritical * 5);
-            if (anomaly) riskScore = Math.min(100, riskScore + 10);
-            const warning = (Math.abs(slope) > 0.45) || (monthsToCritical <= 3 && monthsToCritical >= 0);
-            const confidence = confidenceScore(slope, anomaly, subscriber.history);
-            const survivalProbabilities = [];
-            for (let m = 1; m <= 3; m++) {
-                const predictedRx = intercept + slope * (MONTHS_HISTORY + m);
-                survivalProbabilities.push(survivalProbability(predictedRx).toFixed(2));
-            }
-            const diffs = [];
-            for (let i = 1; i < subscriber.history.length; i++) diffs.push(subscriber.history[i-1] - subscriber.history[i]);
-            const avgDrop = subscriber.degradationRate || 0;
-            const stdDrop = diffs.length > 0 ? Math.sqrt(diffs.reduce((a,b) => a + (b-avgDrop)**2, 0) / diffs.length) : 0;
-            const lastDrop = diffs.length > 0 ? diffs[diffs.length - 1] : 0;
-            let predictedFaultPct;
-            if (anomaly || lastDrop > 2.0) predictedFaultPct = 0.85;
-            else if (stdDrop > 0.25) predictedFaultPct = 0.55;
-            else if (Math.abs(slope) > 0.4) predictedFaultPct = 0.70;
-            else if (Math.abs(slope) > 0.15) predictedFaultPct = 0.75;
-            else predictedFaultPct = 0.85;
-            const predictedFiberKm = predictedFaultPct * subscriber.fiberLengthKm;
-            const predictedCableKm = predictedFiberKm / subscriber.helixFactor;
-            const uncertaintyMeters = (0.15 * subscriber.fiberLengthKm * 1000);
-            const actualFiberKm = subscriber.actualFaultPositionPct * subscriber.fiberLengthKm;
-            const errorKm = Math.abs(predictedFiberKm - actualFiberKm);
-            const errorMeters = errorKm * 1000;
-            return { slope, predictedMonths: monthsToCritical, riskScore, warning, anomaly, confidence, survivalProbabilities, predictedFaultPct, predictedFiberKm, predictedCableKm, errorMeters, uncertaintyMeters };
-        }
+function translateFaultType(faultType){
+const mapping={'CONTAMINATION':'fault_contamination','MACROBEND':'fault_macrobend','BREAK':'fault_break','SPLICE':'fault_splice','STABLE':'fault_stable','غير محدد':'undefined'};
+return t(mapping[faultType]||'undefined');
+}
 
-        function classifyRisk(pred) {
-            const score = pred.riskScore;
-            if (pred.warning) {
-                if (score >= 65) return 'حرج';
-                else return 'خطر';
-            } else {
-                if (score >= 20) return 'مراقبة';
-                else return 'مستقر';
-            }
-        }
-        function translateCategory(cat) {
-            const map = { 'مستقر':'stable','مراقبة':'monitor','خطر':'danger','حرج':'critical' };
-            return t(map[cat] || 'stable');
-        }
-        function isPositiveRisk(category) { return category === 'خطر' || category === 'حرج'; }
+function smoothSeries(data,windowSize=3){
+const smoothed=[];
+for(let i=0;i<data.length;i++){
+const start=Math.max(0,i-windowSize+1);
+const subset=data.slice(start,i+1);
+smoothed.push(subset.reduce((a,b)=>a+b,0)/subset.length);
+}
+return smoothed;
+}
+function linearRegression(y){
+const n=y.length;
+const x=Array.from({length:n},(_,i)=>i+1);
+const sumX=x.reduce((a,b)=>a+b,0);
+const sumY=y.reduce((a,b)=>a+b,0);
+const sumXY=x.reduce((a,b,i)=>a+b*y[i],0);
+const sumX2=x.reduce((a,b)=>a+b*b,0);
+const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
+const intercept=(sumY-slope*sumX)/n;
+return{slope,intercept};
+}
+function detectTemporalAnomaly(history){
+const lastThree=history.slice(-3);
+if(lastThree.length<3)return false;
+const mean=lastThree.reduce((a,b)=>a+b,0)/3;
+const variance=lastThree.reduce((a,b)=>a+(b-mean)**2,0)/3;
+const std=Math.sqrt(variance);
+const last=lastThree[2],prev=lastThree[1];
+return(prev-last)>2*std;
+}
+function confidenceScore(slope,anomaly,history){
+let confidence=0;
+const avgSlope=Math.abs(slope);
+if(avgSlope>0.5)confidence+=60;
+else if(avgSlope>0.3)confidence+=40;
+else if(avgSlope>0.15)confidence+=20;
+if(anomaly)confidence+=20;
+const lastRx=history[history.length-1];
+const distance=Math.abs(CRITICAL_THRESHOLD-lastRx);
+if(distance<1)confidence+=20;
+else if(distance<2)confidence+=10;
+return Math.min(95,confidence);
+}
+function survivalProbability(predictedRx){
+const diff=predictedRx-CRITICAL_THRESHOLD;
+return 1/(1+Math.exp(-diff/1.5));
+}
 
-        // ==================== METRICS ====================
-        function computeMetrics(subscribers, predictions, categories) {
-            let tp=0,fp=0,tn=0,fn=0;
-            subscribers.forEach((sub,i) => {
-                const actual = sub.actualFailure;
-                const pred = isPositiveRisk(categories[i]);
-                if (actual && pred) tp++;
-                else if (!actual && pred) fp++;
-                else if (!actual && !pred) tn++;
-                else if (actual && !pred) fn++;
-            });
-            return { tp, fp, tn, fn,
-                precision: tp/(tp+fp)||0, recall: tp/(tp+fn)||0,
-                f1: 2*(tp/(tp+fp)||0)*(tp/(tp+fn)||0)/((tp/(tp+fp)||0)+(tp/(tp+fn)||0))||0,
-                accuracy: (tp+tn)/(tp+tn+fp+fn) };
-        }
-        function computeROC(subscribers, predictions) {
-            const sorted = subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore - predictions[a].riskScore);
-            let tp=0,fp=0;
-            const totalPos = subscribers.filter(s=>s.actualFailure).length;
-            const totalNeg = subscribers.length - totalPos;
-            const points = [[0,0]];
-            for (const idx of sorted) {
-                if (subscribers[idx].actualFailure) tp++; else fp++;
-                points.push([fp/totalNeg, tp/totalPos]);
-            }
-            let auc = 0;
-            for (let i=1;i<points.length;i++) {
-                const [x1,y1] = points[i-1], [x2,y2] = points[i];
-                auc += (x2-x1)*(y1+y2)/2;
-            }
-            return { points, auc };
-        }
+// ==================== PREDICTION (✅ FIXED) ====================
+function predictFailure(subscriber){
+const smoothed=smoothSeries(subscriber.history,3);
+const {slope,intercept}=linearRegression(smoothed);
 
-        // ==================== NAVIGATION ====================
-        function openNavigation(lat, lng, type) {
-            let url = '';
-            if (type === 'google') url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-            else if (type === 'waze') url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-            if (url) window.open(url, '_blank');
-        }
+// ✅ FIX 1: monthsToCritical من آخر قياس وليس من البداية
+let monthsToCritical=Infinity;
+if(slope<0){
+const criticalMonth=(CRITICAL_THRESHOLD-intercept)/slope;
+monthsToCritical=criticalMonth-MONTHS_HISTORY;
+if(monthsToCritical<0)monthsToCritical=0;
+}
 
-        // ==================== GIS ====================
-        function renderGISMap(subscribers, topIndices) {
-            const container = document.getElementById('gisMap');
-            if (!container || typeof L === 'undefined') {
-                container.innerHTML = '<div class="info">Leaflet غير متاحة، سيتم استخدام المخطط الطولي فقط.</div>';
-                return;
-            }
-            if (gisMapInstance) { gisMapInstance.remove(); }
-            gisMapInstance = L.map(container).setView([33.6831, 1.0193], 6);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(gisMapInstance);
-            topIndices.forEach(idx => {
-                const sub = subscribers[idx];
-                const pred = window.lastResults.predictions[idx];
-                const faultLat = sub.oltCoords[0] + pred.predictedFaultPct * (sub.onuCoords[0] - sub.oltCoords[0]);
-                const faultLng = sub.oltCoords[1] + pred.predictedFaultPct * (sub.onuCoords[1] - sub.oltCoords[1]);
-                const marker = L.circleMarker([faultLat, faultLng], { radius: 6, color: '#d81b60', fillColor: '#f48fb1', fillOpacity: 0.9 }).addTo(gisMapInstance);
-                marker.bindPopup(`
-                    <b>${t('subscriber')} ${sub.id}</b><br>
-                    ${t('last_rx')}: ${sub.history[sub.history.length-1].toFixed(2)} dBm<br>
-                    ${t('degradation')}: ${sub.degradationRate.toFixed(3)} dB/${t('months_unit')}<br>
-                    ${t('category')}: ${translateCategory(window.lastResults.categories[idx])}<br>
-                    ${t('actual_state')}: ${sub.actualFailure ? t('will_fail') : t('is_stable')}<br>
-                    <b>${t('threshold_label')} ${CRITICAL_THRESHOLD} dBm</b><br>
-                    <div class="nav-btns">
-                        <button class="nav-btn" onclick="openNavigation(${faultLat}, ${faultLng}, 'google')">${t('navigate_google')}</button>
-                        <button class="nav-btn" onclick="openNavigation(${faultLat}, ${faultLng}, 'waze')">${t('navigate_waze')}</button>
-                    </div>
-                `);
-                marker.on('click', () => {
-                    const row = document.getElementById(`row-${sub.id}`);
-                    if (row) {
-                        document.querySelectorAll('#allSubscribersTbody tr').forEach(tr => tr.classList.remove('highlight-row'));
-                        row.classList.add('highlight-row');
-                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                });
-                L.polyline([sub.oltCoords, sub.onuCoords], {color: '#00acc1', weight: 2, dashArray: '4 4'}).addTo(gisMapInstance);
-            });
-        }
+// ✅ FIX 2: proximityToCritical بدلاً من distanceToCritical
+const lastRx=subscriber.history[subscriber.history.length-1];
+const marginToCritical=lastRx-CRITICAL_THRESHOLD;
+const proximityToCritical=Math.max(0,10-marginToCritical);
 
-        function renderLongitudinalChart(subscribers, topIndices) {
-            const canvas = document.getElementById('longitudinalChart');
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-            ctx.clearRect(0,0,W,H);
-            const padding = 30;
-            const lineY = H/2;
-            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(padding, lineY); ctx.lineTo(W-padding, lineY); ctx.stroke();
-            ctx.fillStyle = '#0f172a'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'center';
-            ctx.fillText('OLT', padding, lineY - 10);
-            ctx.fillText('ONU', W-padding, lineY - 10);
-            topIndices.forEach(idx => {
-                const sub = subscribers[idx];
-                const pred = window.lastResults.predictions[idx];
-                const x = padding + pred.predictedFaultPct * (W - 2*padding);
-                ctx.fillStyle = '#d81b60';
-                ctx.beginPath(); ctx.arc(x, lineY, 5, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#0f172a'; ctx.font = '9px Segoe UI'; ctx.textAlign = 'center';
-                ctx.fillText('Sub '+sub.id, x, lineY + 20);
-            });
-        }
+const anomaly=detectTemporalAnomaly(subscriber.history);
+let riskScore=Math.min(100,Math.abs(slope)*60+proximityToCritical*5);
+if(anomaly)riskScore=Math.min(100,riskScore+10);
+const warning=(Math.abs(slope)>0.45)||(monthsToCritical<=3&&monthsToCritical>=0);
+const confidence=confidenceScore(slope,anomaly,subscriber.history);
+const survivalProbabilities=[];
+for(let m=1;m<=3;m++){
+const predictedRx=intercept+slope*(MONTHS_HISTORY+m);
+survivalProbabilities.push(survivalProbability(predictedRx).toFixed(2));
+}
+const diffs=[];
+for(let i=1;i<subscriber.history.length;i++)diffs.push(subscriber.history[i-1]-subscriber.history[i]);
+const avgDrop=subscriber.degradationRate||0;
+const stdDrop=diffs.length>0?Math.sqrt(diffs.reduce((a,b)=>a+(b-avgDrop)**2,0)/diffs.length):0;
+const lastDrop=diffs.length>0?diffs[diffs.length-1]:0;
+let predictedFaultPct;
+if(anomaly||lastDrop>2.0)predictedFaultPct=0.85;
+else if(stdDrop>0.25)predictedFaultPct=0.55;
+else if(Math.abs(slope)>0.4)predictedFaultPct=0.70;
+else if(Math.abs(slope)>0.15)predictedFaultPct=0.75;
+else predictedFaultPct=0.85;
+const predictedFiberKm=predictedFaultPct*subscriber.fiberLengthKm;
+const predictedCableKm=predictedFiberKm/subscriber.helixFactor;
+const uncertaintyMeters=(0.15*subscriber.fiberLengthKm*1000);
+const actualFiberKm=subscriber.actualFaultPositionPct*subscriber.fiberLengthKm;
+const errorKm=Math.abs(predictedFiberKm-actualFiberKm);
+const errorMeters=errorKm*1000;
+return{slope,predictedMonths:monthsToCritical,riskScore,warning,anomaly,confidence,survivalProbabilities,predictedFaultPct,predictedFiberKm,predictedCableKm,errorMeters,uncertaintyMeters,marginToCritical};
+}
 
-        // ==================== RENDER ====================
-        function processSubscribers(subscribers) {
-            if (window.dataSource !== 'csv') {
-                subscribers.forEach(sub => { sub.faultType = determineRootCause(sub); });
-            }
-            const predictions = subscribers.map(sub => predictFailure(sub));
-            const categories = predictions.map(p => classifyRisk(p));
-            const metrics = computeMetrics(subscribers, predictions, categories);
-            const roc = computeROC(subscribers, predictions);
-            window.lastResults = { subscribers, predictions, categories, metrics, roc };
+function classifyRisk(pred){
+const score=pred.riskScore;
+if(pred.warning){if(score>=65)return'حرج';else return'خطر'}
+else{if(score>=20)return'مراقبة';else return'مستقر'}
+}
+function translateCategory(cat){const map={'مستقر':'stable','مراقبة':'monitor','خطر':'danger','حرج':'critical'};return t(map[cat]||'stable')}
+function isPositiveRisk(category){return category==='خطر'||category==='حرج'}
 
-            let totalError = 0, countError = 0;
-            subscribers.forEach((sub, i) => {
-                if (isPositiveRisk(categories[i]) && sub.actualFailure) {
-                    totalError += predictions[i].errorMeters;
-                    countError++;
-                }
-            });
-            const avgErrorMeters = countError > 0 ? totalError / countError : 0;
+// ==================== METRICS ====================
+function computeMetrics(subscribers,predictions,categories){
+let tp=0,fp=0,tn=0,fn=0;
+subscribers.forEach((sub,i)=>{
+const actual=sub.actualFailure;
+const pred=isPositiveRisk(categories[i]);
+if(actual&&pred)tp++;
+else if(!actual&&pred)fp++;
+else if(!actual&&!pred)tn++;
+else if(actual&&!pred)fn++;
+});
+const precision=tp/(tp+fp)||0;
+const recall=tp/(tp+fn)||0;
+const specificity=tn/(tn+fp)||0;
+const f1=2*(precision*recall)/(precision+recall)||0;
+const accuracy=(tp+tn)/(tp+tn+fp+fn);
+const mccDenom=Math.sqrt((tp+fp)*(tp+fn)*(tn+fp)*(tn+fn));
+const mcc=mccDenom>0?((tp*tn-fp*fn)/mccDenom):0;
+return{tp,fp,tn,fn,precision,recall,specificity,f1,accuracy,mcc};
+}
 
-            document.getElementById('metricsBox').innerHTML = `
-                <div class="metric-card"><div class="value">${subscribers.length}</div><div class="label">${t('subscriber')}</div></div>
-                <div class="metric-card"><div class="value">${metrics.tp + metrics.fn}</div><div class="label">${t('actual_state')}</div></div>
-                <div class="metric-card"><div class="value">${(metrics.precision*100).toFixed(1)}%</div><div class="label">Precision</div></div>
-                <div class="metric-card"><div class="value">${(metrics.recall*100).toFixed(1)}%</div><div class="label">Recall</div></div>
-                <div class="metric-card"><div class="value">${(metrics.f1*100).toFixed(1)}%</div><div class="label">F1-Score</div></div>
-                <div class="metric-card"><div class="value">${(metrics.accuracy*100).toFixed(1)}%</div><div class="label">Accuracy</div></div>
-                <div class="metric-card"><div class="value">${(roc.auc*100).toFixed(1)}%</div><div class="label">AUC</div></div>
-                <div class="metric-card"><div class="value">${avgErrorMeters.toFixed(1)}</div><div class="label">متوسط الخطأ المكاني (م)</div></div>`;
+function computeROC(subscribers,predictions){
+const sorted=subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore-predictions[a].riskScore);
+let tp=0,fp=0;
+const totalPos=subscribers.filter(s=>s.actualFailure).length;
+const totalNeg=subscribers.length-totalPos;
+const points=[[0,0]];
+const prPoints=[];
+for(const idx of sorted){
+if(subscribers[idx].actualFailure)tp++;else fp++;
+points.push([fp/totalNeg,tp/totalPos]);
+prPoints.push([tp/(tp+fp),tp/totalPos]);
+}
+let auc=0;
+for(let i=1;i<points.length;i++){
+const[x1,y1]=points[i-1],[x2,y2]=points[i];
+auc+=(x2-x1)*(y1+y2)/2;
+}
+let prAuc=0;
+for(let i=1;i<prPoints.length;i++){
+const[x1,y1]=prPoints[i-1],[x2,y2]=prPoints[i];
+prAuc+=(x2-x1)*(y1+y2)/2;
+}
+return{points,auc,prPoints,prAuc};
+}
 
-            const source = window.dataSource === 'csv' ? t('source_csv') : t('source_sim');
-            document.getElementById('summary').innerHTML = t('summary_text')
-                .replace('{total}', subscribers.length).replace('{risk}', metrics.tp + metrics.fp)
-                .replace('{actual}', metrics.tp + metrics.fn).replace('{tp}', metrics.tp).replace('{fp}', metrics.fp) + `<br>${source}`;
+function computeLocationMetrics(subscribers,predictions,categories){
+let sumError=0,sumSquaredError=0,count=0;
+subscribers.forEach((sub,i)=>{
+if(isPositiveRisk(categories[i])&&sub.actualFailure){
+sumError+=predictions[i].errorMeters;
+sumSquaredError+=Math.pow(predictions[i].errorMeters,2);
+count++;
+}
+});
+const mae=count>0?sumError/count:0;
+const rmse=count>0?Math.sqrt(sumSquaredError/count):0;
+return{mae,rmse,count};
+}
 
-            const catCounts = { 'مستقر':0, 'مراقبة':0, 'خطر':0, 'حرج':0 };
-            categories.forEach(c => catCounts[c]++);
-            document.getElementById('categoryStats').innerHTML = `
-                <div class="metric-card"><div class="value">${catCounts['مستقر']}</div><div class="label">${t('stable')}</div></div>
-                <div class="metric-card"><div class="value">${catCounts['مراقبة']}</div><div class="label">${t('monitor')}</div></div>
-                <div class="metric-card"><div class="value">${catCounts['خطر']}</div><div class="label">${t('danger')}</div></div>
-                <div class="metric-card"><div class="value">${catCounts['حرج']}</div><div class="label">${t('critical')}</div></div>`;
+function openNavigation(lat,lng,type){
+let url='';
+if(type==='google')url=`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+else if(type==='waze')url=`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+if(url)window.open(url,'_blank');
+}
 
-            if (window.dataSource !== 'csv') {
-                document.getElementById('ponSection').style.display = 'block';
-                let groupStats = '';
-                for (let g = 1; g <= NUMBER_OF_PON_GROUPS; g++) {
-                    const groupSubs = subscribers.filter(s => s.groupId === g);
-                    const groupRisk = groupSubs.filter(s => isPositiveRisk(categories[subscribers.indexOf(s)]));
-                    if (groupRisk.length > 0) groupStats += `Group ${g}: ${groupRisk.length} ${t('danger')}<br>`;
-                }
-                document.getElementById('ponSummary').innerHTML = groupStats || t('no_pon_risk');
-            } else {
-                document.getElementById('ponSection').style.display = 'none';
-            }
+// ==================== GIS ====================
+function renderGISMap(subscribers,topIndices){
+const container=document.getElementById('gisMap');
+if(!container||typeof L==='undefined'){container.innerHTML='<div class="info">Leaflet غير متاحة</div>';return}
+if(gisMapInstance){gisMapInstance.remove()}
+gisMapInstance=L.map(container).setView([33.6831,1.0193],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(gisMapInstance);
+topIndices.forEach(idx=>{
+const sub=subscribers[idx];
+const pred=window.lastResults.predictions[idx];
+const faultLat=sub.oltCoords[0]+pred.predictedFaultPct*(sub.onuCoords[0]-sub.oltCoords[0]);
+const faultLng=sub.oltCoords[1]+pred.predictedFaultPct*(sub.onuCoords[1]-sub.oltCoords[1]);
+const marker=L.circleMarker([faultLat,faultLng],{radius:6,color:'#d81b60',fillColor:'#f48fb1',fillOpacity:0.9}).addTo(gisMapInstance);
+marker.bindPopup(`<b>${t('subscriber')} ${sub.id}</b><br>${t('last_rx')}: ${sub.history[sub.history.length-1].toFixed(2)} dBm<br>${t('degradation')}: ${sub.degradationRate.toFixed(3)} dB/${t('months_unit')}<br>${t('category')}: ${translateCategory(window.lastResults.categories[idx])}<br>${t('actual_state')}: ${sub.actualFailure?t('will_fail'):t('is_stable')}<br><b>${t('threshold_label')} ${CRITICAL_THRESHOLD} dBm</b><br><div class="nav-btns"><button class="nav-btn" onclick="openNavigation(${faultLat},${faultLng},'google')">${t('navigate_google')}</button><button class="nav-btn" onclick="openNavigation(${faultLat},${faultLng},'waze')">${t('navigate_waze')}</button></div>`);
+marker.on('click',()=>{
+const row=document.getElementById(`row-${sub.id}`);
+if(row){
+document.querySelectorAll('#allSubscribersTbody tr').forEach(tr=>tr.classList.remove('highlight-row'));
+row.classList.add('highlight-row');
+row.scrollIntoView({behavior:'smooth',block:'center'});
+}
+});
+L.polyline([sub.oltCoords,sub.onuCoords],{color:'#00acc1',weight:2,dashArray:'4 4'}).addTo(gisMapInstance);
+});
+}
 
-            const sorted = subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore - predictions[a].riskScore);
-            const top5 = sorted.slice(0,5);
+function renderLongitudinalChart(subscribers,topIndices){
+const canvas=document.getElementById('longitudinalChart');
+const ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+ctx.clearRect(0,0,W,H);
+const padding=30;
+const lineY=H/2;
+ctx.strokeStyle='#94a3b8';ctx.lineWidth=3;
+ctx.beginPath();ctx.moveTo(padding,lineY);ctx.lineTo(W-padding,lineY);ctx.stroke();
+ctx.fillStyle='#0f172a';ctx.font='10px Segoe UI';ctx.textAlign='center';
+ctx.fillText('OLT',padding,lineY-10);
+ctx.fillText('ONU',W-padding,lineY-10);
+topIndices.forEach(idx=>{
+const sub=subscribers[idx];
+const pred=window.lastResults.predictions[idx];
+const x=padding+pred.predictedFaultPct*(W-2*padding);
+ctx.fillStyle='#d81b60';
+ctx.beginPath();ctx.arc(x,lineY,5,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#0f172a';ctx.font='9px Segoe UI';ctx.textAlign='center';
+ctx.fillText('Sub '+sub.id,x,lineY+20);
+});
+}
 
-            const topTbody = document.getElementById('topRiskTbody');
-            topTbody.innerHTML = '';
-            top5.forEach(i => {
-                const sub = subscribers[i], pred = predictions[i], cat = categories[i];
-                const predictedText = pred.predictedMonths > 12 ? t('more_than_year') : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1)+' '+t('months_unit') : t('more_than_year'));
-                const actualStatus = sub.actualFailure ? t('will_fail') : t('is_stable');
-                const rowClass = sub.actualFailure ? 'alert' : (cat === 'حرج' ? 'critical' : cat === 'خطر' ? 'warn' : cat === 'مراقبة' ? 'monitor' : 'safe');
-                topTbody.innerHTML += `<tr id="toprow-${sub.id}"><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${predictedText}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td></tr>`;
-            });
+// ==================== RENDER ====================
+function processSubscribers(subscribers){
+if(window.dataSource!=='csv'){subscribers.forEach(sub=>{sub.faultType=determineRootCause(sub)})}
+const predictions=subscribers.map(sub=>predictFailure(sub));
+const categories=predictions.map(p=>classifyRisk(p));
+const metrics=computeMetrics(subscribers,predictions,categories);
+const roc=computeROC(subscribers,predictions);
+const loc=computeLocationMetrics(subscribers,predictions,categories);
+window.lastResults={subscribers,predictions,categories,metrics,roc,loc};
 
-            const allTbody = document.getElementById('allSubscribersTbody');
-            allTbody.innerHTML = '';
-            sorted.forEach(i => {
-                const sub = subscribers[i], pred = predictions[i], cat = categories[i];
-                const predictedText = pred.predictedMonths > 12 ? t('more_than_year') : (pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1)+' '+t('months_unit') : t('more_than_year'));
-                const actualStatus = sub.actualFailure ? t('will_fail') : t('is_stable');
-                const rowClass = sub.actualFailure ? 'alert' : (cat === 'حرج' ? 'critical' : cat === 'خطر' ? 'warn' : cat === 'مراقبة' ? 'monitor' : 'safe');
-                let reason = '';
-                if (isPositiveRisk(cat)) {
-                    reason = `Degradation ${Math.abs(pred.slope).toFixed(3)} dB/month, expected in ${predictedText}`;
-                    if (pred.anomaly) reason += ' (Anomaly)';
-                    if (sub.faultType !== 'غير محدد' && sub.faultType !== 'STABLE') reason += ` (${translateFaultType(sub.faultType)})`;
-                } else if (cat === 'مراقبة') reason = t('monitor');
-                else reason = t('stable');
-                const survivalText = pred.survivalProbabilities.map((p,idx) => `M${idx+1}: ${p}`).join(' | ');
-                const locationText = `${pred.predictedFiberKm.toFixed(2)} ± ${pred.uncertaintyMeters.toFixed(0)}م`;
-                allTbody.innerHTML += `<tr id="row-${sub.id}"><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td><td>${reason}</td><td class="survival-box">${survivalText}</td><td>${pred.errorMeters.toFixed(1)}</td><td>${locationText}</td></tr>`;
-            });
+const source=window.dataSource==='csv'?t('source_csv'):t('source_sim');
+const badge=document.getElementById('dataSourceBadge');
+badge.innerHTML=`<span style="display:inline-block;padding:6px 16px;border-radius:20px;font-weight:700;font-size:13px;background:${window.dataSource==='csv'?'#fef3c7':'#dbeafe'};color:${window.dataSource==='csv'?'#92400e':'#1e40af'};border:1px solid ${window.dataSource==='csv'?'#fbbf24':'#3b82f6'}">${source}</span>`;
 
-            drawSignalChartManual(subscribers, top5);
-            drawROCChartManual(roc.points, roc.auc);
-            renderGISMap(subscribers, top5);
-            renderLongitudinalChart(subscribers, top5);
-            document.getElementById('results').style.display = 'block';
-        }
+document.getElementById('metricsBox').innerHTML=`
+<div class="metric-card"><div class="value">${subscribers.length}</div><div class="label">${t('subscriber')}</div></div>
+<div class="metric-card"><div class="value">${metrics.tp+metrics.fn}</div><div class="label">${t('actual_state')}</div></div>
+<div class="metric-card"><div class="value">${(metrics.precision*100).toFixed(1)}%</div><div class="label">Precision</div></div>
+<div class="metric-card"><div class="value">${(metrics.recall*100).toFixed(1)}%</div><div class="label">Recall (Sensitivity)</div></div>
+<div class="metric-card"><div class="value">${(metrics.specificity*100).toFixed(1)}%</div><div class="label">Specificity</div></div>
+<div class="metric-card"><div class="value">${(metrics.f1*100).toFixed(1)}%</div><div class="label">F1-Score</div></div>
+<div class="metric-card"><div class="value">${(metrics.accuracy*100).toFixed(1)}%</div><div class="label">Accuracy</div></div>
+<div class="metric-card"><div class="value">${(roc.auc*100).toFixed(1)}%</div><div class="label">AUC</div></div>
+<div class="metric-card"><div class="value">${(roc.prAuc*100).toFixed(1)}%</div><div class="label">PR-AUC</div></div>
+<div class="metric-card"><div class="value">${metrics.mcc.toFixed(3)}</div><div class="label">MCC</div></div>`;
 
-        // ==================== CHARTS ====================
-        function drawSignalChartManual(subscribers, indices) {
-            const canvas = document.getElementById('signalChart');
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-            ctx.clearRect(0,0,W,H);
-            const padding = 50, chartW = W-padding*2, chartH = H-padding*2;
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 0.5;
-            for (let x = padding; x <= W-padding; x += 20) { ctx.beginPath(); ctx.moveTo(x, padding); ctx.lineTo(x, H-padding); ctx.stroke(); }
-            for (let y = padding; y <= H-padding; y += 20) { ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(W-padding, y); ctx.stroke(); }
-            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,H-padding); ctx.lineTo(W-padding,H-padding); ctx.stroke();
-            ctx.fillStyle = '#0f172a'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'center';
-            ctx.fillText(t('months_unit'), W/2, H-10);
-            ctx.save(); ctx.translate(20,H/2); ctx.rotate(-Math.PI/2); ctx.fillText('Rx Power',0,0); ctx.restore();
-            const allValues = indices.flatMap(i => subscribers[i].history);
-            const maxVal = Math.max(...allValues)+1, minVal = Math.min(...allValues)-1;
-            const lineColors = ['#00acc1', '#8e24aa', '#43a047', '#fb8c00', '#d81b60'];
-            indices.forEach((idx,k) => {
-                const sub = subscribers[idx], color = lineColors[k % lineColors.length];
-                ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.shadowColor = color; ctx.shadowBlur = 6;
-                ctx.beginPath();
-                for (let m=0; m<sub.history.length; m++) {
-                    const x = padding + (m/(MONTHS_HISTORY-1))*chartW;
-                    const y = padding + ((maxVal-sub.history[m])/(maxVal-minVal))*chartH;
-                    if (m===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-                }
-                ctx.stroke(); ctx.shadowBlur = 0;
-            });
-            const yCrit = padding + ((maxVal-CRITICAL_THRESHOLD)/(maxVal-minVal))*chartH;
-            ctx.strokeStyle = '#ef4444'; ctx.setLineDash([6,4]); ctx.lineWidth = 2; ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 8;
-            ctx.beginPath(); ctx.moveTo(padding,yCrit); ctx.lineTo(W-padding,yCrit); ctx.stroke();
-            ctx.setLineDash([]); ctx.shadowBlur = 0;
-            ctx.fillStyle = '#ef4444'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
-            ctx.fillText('Critical -28 dBm', W-padding-120, yCrit-5);
-        }
+document.getElementById('summary').innerHTML=t('summary_text')
+.replace('{total}',subscribers.length)
+.replace('{risk}',metrics.tp+metrics.fp)
+.replace('{actual}',metrics.tp+metrics.fn)
+.replace('{tp}',metrics.tp)
+.replace('{fp}',metrics.fp);
 
-        function drawROCChartManual(points, auc) {
-            const canvas = document.getElementById('rocChart');
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-            ctx.clearRect(0,0,W,H);
-            const padding = 50, chartW = W-padding*2, chartH = H-padding*2;
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 0.5;
-            for (let x = padding; x <= W-padding; x += 20) { ctx.beginPath(); ctx.moveTo(x, padding); ctx.lineTo(x, H-padding); ctx.stroke(); }
-            for (let y = padding; y <= H-padding; y += 20) { ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(W-padding, y); ctx.stroke(); }
-            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(padding,padding); ctx.lineTo(padding,H-padding); ctx.lineTo(W-padding,H-padding); ctx.stroke();
-            ctx.fillStyle = '#0f172a'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'center';
-            ctx.fillText('False Positive Rate', W/2, H-10);
-            ctx.save(); ctx.translate(20,H/2); ctx.rotate(-Math.PI/2); ctx.fillText('True Positive Rate',0,0); ctx.restore();
-            ctx.strokeStyle = '#8e24aa'; ctx.setLineDash([4,4]); ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(padding,H-padding); ctx.lineTo(W-padding,padding); ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.strokeStyle = '#00acc1'; ctx.lineWidth = 2.5; ctx.shadowColor = '#00acc1'; ctx.shadowBlur = 6;
-            ctx.beginPath();
-            points.forEach((p,i) => {
-                const x = padding + p[0]*chartW;
-                const y = padding + (1-p[1])*chartH;
-                if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-            });
-            ctx.stroke(); ctx.shadowBlur = 0;
-            ctx.fillStyle = '#00acc1'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
-            ctx.fillText('AUC = '+auc.toFixed(3), W/2, 30);
-        }
+// Confusion Matrix
+document.getElementById('confusionMatrix').innerHTML=`
+<div class="confusion-card tp"><div class="value" style="color:#16a34a;">${metrics.tp}</div><div class="label">True Positives (TP)</div></div>
+<div class="confusion-card fp"><div class="value" style="color:#fb923c;">${metrics.fp}</div><div class="label">False Positives (FP)</div></div>
+<div class="confusion-card fn"><div class="value" style="color:#dc2626;">${metrics.fn}</div><div class="label">False Negatives (FN)</div></div>
+<div class="confusion-card tn"><div class="value" style="color:#2563eb;">${metrics.tn}</div><div class="label">True Negatives (TN)</div></div>`;
 
-        // ==================== RUN ====================
-        function runPrediction() {
-            const seedValue = parseInt(document.getElementById('seedInput').value, 10) || 42;
-            const rand = mulberry32(seedValue);
-            const subscribers = generateSubscribers(rand);
-            window.dataSource = 'simulation';
-            processSubscribers(subscribers);
-        }
-        function compareTwoSeeds() {
-            const seed1 = parseInt(document.getElementById('seedInput').value,10)||42;
-            const seed2 = seed1+100;
-            const results = [seed1, seed2].map(seed => {
-                const rand = mulberry32(seed);
-                const subscribers = generateSubscribers(rand);
-                const predictions = subscribers.map(sub => predictFailure(sub));
-                const categories = predictions.map(p => classifyRisk(p));
-                const metrics = computeMetrics(subscribers, predictions, categories);
-                const roc = computeROC(subscribers, predictions);
-                return { seed, metrics, roc };
-            });
-            let msg = '';
-            results.forEach(r => { msg += `Seed ${r.seed}: Precision ${(r.metrics.precision*100).toFixed(1)}%, Recall ${(r.metrics.recall*100).toFixed(1)}%, F1 ${(r.metrics.f1*100).toFixed(1)}%, AUC ${(r.roc.auc*100).toFixed(1)}%\n`; });
-            alert(msg);
-        }
-        function exportCSV() {
-            if (!window.lastResults) { alert('Please run analysis first'); return; }
-            const { subscribers, predictions, categories } = window.lastResults;
-            let csv = 'subscriber,group,last_rx,degradation,cause,risk_score,confidence,category,actual_state,survival,predicted_km,cable_km,error_meters,uncertainty_meters\n';
-            subscribers.forEach((sub,i) => {
-                const pred = predictions[i], cat = categories[i];
-                const actual = sub.actualFailure ? 'failure' : 'ok';
-                const survival = pred.survivalProbabilities.join('|');
-                csv += `${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${pred.confidence}%,${cat},${actual},${survival},${pred.predictedFiberKm.toFixed(2)},${pred.predictedCableKm.toFixed(2)},${pred.errorMeters.toFixed(1)},${pred.uncertaintyMeters.toFixed(1)}\n`;
-            });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'AT-FiberPredict_Results.csv';
-            link.click();
-        }
+// Extended metrics
+document.getElementById('extendedMetrics').innerHTML=`
+<div class="metric-card"><div class="value">${loc.mae.toFixed(1)}</div><div class="label">MAE Location (m)</div></div>
+<div class="metric-card"><div class="value">${loc.rmse.toFixed(1)}</div><div class="label">RMSE Location (m)</div></div>
+<div class="metric-card"><div class="value">${loc.count}</div><div class="label">Samples (Localization)</div></div>`;
 
-        // ==================== PDF REPORT (PROFESSIONAL) ====================
-        async function printReport() {
-            if (!window.lastResults) { 
-                alert('يرجى تشغيل التحليل أولاً'); 
-                return; 
-            }
-            
-            const { subscribers, predictions, categories, metrics, roc } = window.lastResults;
-            
-            // عرض رسالة تحميل
-            const loadingMsg = document.createElement('div');
-            loadingMsg.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1e3a8a;color:white;padding:15px 30px;border-radius:10px;z-index:99999;font-weight:bold;box-shadow:0 4px 15px rgba(0,0,0,0.3);';
-            loadingMsg.textContent = '⏳ جاري إنشاء تقرير PDF...';
-            document.body.appendChild(loadingMsg);
-            
-            try {
-                // حساب متوسط الخطأ المكاني
-                let totalError = 0, countError = 0;
-                subscribers.forEach((sub, i) => {
-                    if (isPositiveRisk(categories[i]) && sub.actualFailure) {
-                        totalError += predictions[i].errorMeters;
-                        countError++;
-                    }
-                });
-                const avgErrorMeters = countError > 0 ? totalError / countError : 0;
-                
-                // التقاط الرسوم البيانية كصور
-                const signalImg = document.getElementById('signalChart').toDataURL('image/png');
-                const rocImg = document.getElementById('rocChart').toDataURL('image/png');
-                const longImg = document.getElementById('longitudinalChart').toDataURL('image/png');
-                
-                // بناء التقرير
-                const sorted = subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore - predictions[a].riskScore);
-                const top5 = sorted.slice(0,5);
-                
-                let top5Rows = '';
-                top5.forEach(idx => {
-                    const sub = subscribers[idx];
-                    const pred = predictions[idx];
-                    const cat = categories[idx];
-                    const bgColor = sub.actualFailure ? '#fee2e2' : '#f8fafc';
-                    top5Rows += `
-                        <tr style="background:${bgColor};">
-                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;">${sub.id}</td>
-                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;">${sub.history[sub.history.length-1].toFixed(2)} dBm</td>
-                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;">${sub.degradationRate.toFixed(3)} dB/شهر</td>
-                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;">${cat}</td>
-                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;color:${sub.actualFailure ? '#b91c1c' : '#166534'};font-weight:bold;">${sub.actualFailure ? '⚠️ سيتعطل' : '✅ مستقر'}</td>
-                            <td style="padding:8px;border:1px solid #cbd5e1;text-align:center;">${pred.errorMeters.toFixed(0)} م</td>
-                        </tr>
-                    `;
-                });
-                
-                let recommendationsHtml = '';
-                top5.forEach(idx => {
-                    const sub = subscribers[idx];
-                    const pred = predictions[idx];
-                    recommendationsHtml += `
-                        <div style="margin-bottom:10px;padding:10px;background:white;border-right:4px solid #d81b60;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                            <strong style="color:#1e3a8a;">مشترك ${sub.id}:</strong>
-                            <span style="color:#334155;">يُنصح بفحص المنطقة قرب <b>${pred.predictedFiberKm.toFixed(2)} كم</b> (${translateFaultType(sub.faultType)}) — توقع العطل خلال ${pred.predictedMonths !== Infinity ? pred.predictedMonths.toFixed(1) + ' شهر' : 'أكثر من سنة'}</span>
-                        </div>
-                    `;
-                });
-                
-                const reportHTML = `
-                    <div style="width:794px;background:white;padding:40px;font-family:'Tajawal',sans-serif;direction:rtl;color:#0f172a;box-sizing:border-box;">
-                        
-                        <!-- الترويسة -->
-                        <div style="text-align:center;border-bottom:4px solid #1e3a8a;padding-bottom:20px;margin-bottom:25px;">
-                            <h1 style="color:#1e3a8a;font-size:32px;margin:0 0 8px 0;font-weight:800;">🧠 AT-FiberPredict</h1>
-                            <p style="color:#64748b;font-size:16px;margin:0;">تقرير التنبؤ الوقائي لأعطال شبكات FTTH/GPON</p>
-                            <p style="font-size:12px;color:#94a3b8;margin:10px 0 0 0;">تاريخ التقرير: ${new Date().toLocaleString('ar-DZ')} | المصدر: ${window.dataSource === 'csv' ? 'ملف CSV' : 'محاكاة'}</p>
-                        </div>
-                        
-                        <!-- المقاييس -->
-                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">1. المقاييس الرئيسية</h2>
-                        <table style="width:100%;border-collapse:collapse;margin-bottom:25px;font-size:13px;">
-                            <tr style="background:#e0f7fa;color:#006064;font-weight:bold;">
-                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">المشتركين</td>
-                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">الأعطال الفعلية</td>
-                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">Precision</td>
-                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">Recall</td>
-                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">F1-Score</td>
-                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">Accuracy</td>
-                                <td style="padding:10px;border:1px solid #cbd5e1;text-align:center;">AUC</td>
-                            </tr>
-                            <tr style="background:white;">
-                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#1e3a8a;">${subscribers.length}</td>
-                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#d81b60;">${metrics.tp + metrics.fn}</td>
-                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(metrics.precision*100).toFixed(1)}%</td>
-                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(metrics.recall*100).toFixed(1)}%</td>
-                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(metrics.f1*100).toFixed(1)}%</td>
-                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(metrics.accuracy*100).toFixed(1)}%</td>
-                                <td style="padding:12px;border:1px solid #cbd5e1;text-align:center;font-weight:bold;color:#006064;">${(roc.auc*100).toFixed(1)}%</td>
-                            </tr>
-                        </table>
-                        
-                        <div style="background:#f0f9ff;padding:12px;border-radius:8px;border-right:4px solid #00acc1;margin-bottom:25px;font-size:13px;">
-                            <b>متوسط الخطأ المكاني:</b> ${avgErrorMeters.toFixed(1)} متر
-                        </div>
-                        
-                        <!-- أخطر 5 -->
-                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">2. أخطر 5 مشتركين</h2>
-                        <table style="width:100%;border-collapse:collapse;margin-bottom:25px;font-size:12px;">
-                            <thead>
-                                <tr style="background:#1e3a8a;color:white;">
-                                    <th style="padding:10px;border:1px solid #cbd5e1;">المشترك</th>
-                                    <th style="padding:10px;border:1px solid #cbd5e1;">آخر Rx</th>
-                                    <th style="padding:10px;border:1px solid #cbd5e1;">التدهور</th>
-                                    <th style="padding:10px;border:1px solid #cbd5e1;">التصنيف</th>
-                                    <th style="padding:10px;border:1px solid #cbd5e1;">الحالة الفعلية</th>
-                                    <th style="padding:10px;border:1px solid #cbd5e1;">خطأ المسافة</th>
-                                </tr>
-                            </thead>
-                            <tbody>${top5Rows}</tbody>
-                        </table>
-                        
-                        <!-- منحنى ROC -->
-                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">3. منحنى ROC</h2>
-                        <div style="text-align:center;margin-bottom:25px;">
-                            <img src="${rocImg}" style="max-width:500px;width:100%;border:1px solid #e2e8f0;border-radius:8px;" />
-                        </div>
-                        
-                        <!-- منحنيات التدهور -->
-                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">4. منحنيات تدهور الإشارة</h2>
-                        <div style="text-align:center;margin-bottom:25px;">
-                            <img src="${signalImg}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px;" />
-                        </div>
-                        
-                        <!-- المخطط الطولي -->
-                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">5. المخطط الطولي للمسار</h2>
-                        <div style="text-align:center;margin-bottom:25px;">
-                            <img src="${longImg}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px;" />
-                        </div>
-                        
-                        <!-- التوصيات -->
-                        <h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">6. التوصيات الفنية</h2>
-                        <div style="background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:25px;">
-                            ${recommendationsHtml}
-                        </div>
-                        
-                        <!-- التوقيعات -->
-                        <div style="margin-top:40px;padding-top:20px;border-top:2px dashed #cbd5e1;display:flex;justify-content:space-between;">
-                            <div style="text-align:center;width:45%;">
-                                <p style="font-weight:bold;color:#1e3a8a;margin-bottom:60px;">توقيع التقني المسؤول</p>
-                                <p style="border-top:1px solid #0f172a;padding-top:8px;">&nbsp;</p>
-                            </div>
-                            <div style="text-align:center;width:45%;">
-                                <p style="font-weight:bold;color:#1e3a8a;margin-bottom:60px;">توقيع وخاتم المشرف</p>
-                                <p style="border-top:1px solid #0f172a;padding-top:8px;">&nbsp;</p>
-                            </div>
-                        </div>
-                        
-                        <!-- التذييل -->
-                        <div style="margin-top:30px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:15px;">
-                            تم إنشاء هذا التقرير تلقائياً بواسطة منصة AT-FiberPredict — النتائج مبنية على معايير ITU-T G.984 و G.652
-                        </div>
-                    </div>
-                `;
-                
-                // إنشاء حاوية مؤقتة للتصوير
-                const tempDiv = document.createElement('div');
-                tempDiv.style.cssText = 'position:fixed;top:-10000px;left:0;z-index:-1;';
-                tempDiv.innerHTML = reportHTML;
-                document.body.appendChild(tempDiv);
-                
-                // انتظار تحميل الصور
-                await new Promise(r => setTimeout(r, 800));
-                
-                // تحويل HTML إلى صورة
-                const canvas = await html2canvas(tempDiv.firstElementChild, {
-                    scale: 2,
-                    backgroundColor: '#ffffff',
-                    useCORS: true,
-                    logging: false,
-                    windowWidth: 794
-                });
-                
-                // إزالة الحاوية
-                document.body.removeChild(tempDiv);
-                
-                // إنشاء PDF
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                const imgData = canvas.toDataURL('image/jpeg', 0.92);
-                const imgWidth = pdfWidth;
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                
-                let heightLeft = imgHeight;
-                let position = 0;
-                
-                pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pdfHeight;
-                
-                while (heightLeft > 0) {
-                    position = heightLeft - imgHeight;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pdfHeight;
-                }
-                
-                pdf.save(`AT-FiberPredict_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-                
-                document.body.removeChild(loadingMsg);
-                alert('✅ تم إنشاء التقرير بنجاح!');
-                
-            } catch (err) {
-                console.error('PDF error:', err);
-                if (document.body.contains(loadingMsg)) document.body.removeChild(loadingMsg);
-                alert('حدث خطأ أثناء إنشاء PDF: ' + err.message);
-            }
-        }
+const catCounts={'مستقر':0,'مراقبة':0,'خطر':0,'حرج':0};
+categories.forEach(c=>catCounts[c]++);
+document.getElementById('categoryStats').innerHTML=`
+<div class="metric-card"><div class="value">${catCounts['مستقر']}</div><div class="label">${t('stable')}</div></div>
+<div class="metric-card"><div class="value">${catCounts['مراقبة']}</div><div class="label">${t('monitor')}</div></div>
+<div class="metric-card"><div class="value">${catCounts['خطر']}</div><div class="label">${t('danger')}</div></div>
+<div class="metric-card"><div class="value">${catCounts['حرج']}</div><div class="label">${t('critical')}</div></div>`;
 
-        // ==================== INIT ====================
-        function init() {
-            setLanguage(currentLang);
-            buildTableHeaders();
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed', err));
-                });
-            }
-        }
-        init();
-    </script>
+if(window.dataSource!=='csv'){
+document.getElementById('ponSection').style.display='block';
+let groupStats='';
+for(let g=1;g<=NUMBER_OF_PON_GROUPS;g++){
+const groupSubs=subscribers.filter(s=>s.groupId===g);
+const groupRisk=groupSubs.filter(s=>isPositiveRisk(categories[subscribers.indexOf(s)]));
+if(groupRisk.length>0)groupStats+=`Group ${g}: ${groupRisk.length} ${t('danger')}<br>`;
+}
+document.getElementById('ponSummary').innerHTML=groupStats||t('no_pon_risk');
+}else{
+document.getElementById('ponSection').style.display='none';
+}
+
+const sorted=subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore-predictions[a].riskScore);
+const top5=sorted.slice(0,5);
+
+const topTbody=document.getElementById('topRiskTbody');
+topTbody.innerHTML='';
+top5.forEach(i=>{
+const sub=subscribers[i],pred=predictions[i],cat=categories[i];
+const predictedText=pred.predictedMonths>12?t('more_than_year'):(pred.predictedMonths!==Infinity?pred.predictedMonths.toFixed(1)+' '+t('months_unit'):t('more_than_year'));
+const actualStatus=sub.actualFailure?t('will_fail'):t('is_stable');
+const rowClass=sub.actualFailure?'alert':(cat==='حرج'?'critical':cat==='خطر'?'warn':cat==='مراقبة'?'monitor':'safe');
+topTbody.innerHTML+=`<tr id="toprow-${sub.id}"><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${predictedText}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td></tr>`;
+});
+
+const allTbody=document.getElementById('allSubscribersTbody');
+allTbody.innerHTML='';
+sorted.forEach(i=>{
+const sub=subscribers[i],pred=predictions[i],cat=categories[i];
+const predictedText=pred.predictedMonths>12?t('more_than_year'):(pred.predictedMonths!==Infinity?pred.predictedMonths.toFixed(1)+' '+t('months_unit'):t('more_than_year'));
+const actualStatus=sub.actualFailure?t('will_fail'):t('is_stable');
+const rowClass=sub.actualFailure?'alert':(cat==='حرج'?'critical':cat==='خطر'?'warn':cat==='مراقبة'?'monitor':'safe');
+let reason='';
+if(isPositiveRisk(cat)){
+reason=`Degradation ${Math.abs(pred.slope).toFixed(3)} dB/month, expected in ${predictedText}`;
+if(pred.anomaly)reason+=' (Anomaly)';
+if(sub.faultType!=='غير محدد'&&sub.faultType!=='STABLE')reason+=` (${translateFaultType(sub.faultType)})`;
+}else if(cat==='مراقبة')reason=t('monitor');
+else reason=t('stable');
+const survivalText=pred.survivalProbabilities.map((p,idx)=>`M${idx+1}: ${p}`).join(' | ');
+const locationText=`${pred.predictedFiberKm.toFixed(2)} ± ${pred.uncertaintyMeters.toFixed(0)}م`;
+allTbody.innerHTML+=`<tr id="row-${sub.id}"><td>${sub.id}</td><td>${sub.groupId}</td><td>${sub.history[sub.history.length-1].toFixed(2)}</td><td>${sub.degradationRate.toFixed(3)}</td><td>${translateFaultType(sub.faultType)}</td><td>${pred.riskScore.toFixed(1)}</td><td>${pred.confidence}%</td><td>${translateCategory(cat)}</td><td class="${rowClass}">${actualStatus}</td><td>${reason}</td><td class="survival-box">${survivalText}</td><td>${pred.errorMeters.toFixed(1)}</td><td>${locationText}</td></tr>`;
+});
+
+drawSignalChartManual(subscribers,top5);
+drawROCChartManual(roc.points,roc.auc);
+renderGISMap(subscribers,top5);
+renderLongitudinalChart(subscribers,top5);
+document.getElementById('results').style.display='block';
+}
+
+function drawSignalChartManual(subscribers,indices){
+const canvas=document.getElementById('signalChart');
+const ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+ctx.clearRect(0,0,W,H);
+const padding=50,chartW=W-padding*2,chartH=H-padding*2;
+ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=0.5;
+for(let x=padding;x<=W-padding;x+=20){ctx.beginPath();ctx.moveTo(x,padding);ctx.lineTo(x,H-padding);ctx.stroke()}
+for(let y=padding;y<=H-padding;y+=20){ctx.beginPath();ctx.moveTo(padding,y);ctx.lineTo(W-padding,y);ctx.stroke()}
+ctx.strokeStyle='#94a3b8';ctx.lineWidth=1;
+ctx.beginPath();ctx.moveTo(padding,padding);ctx.lineTo(padding,H-padding);ctx.lineTo(W-padding,H-padding);ctx.stroke();
+ctx.fillStyle='#0f172a';ctx.font='12px Segoe UI';ctx.textAlign='center';
+ctx.fillText(t('months_unit'),W/2,H-10);
+ctx.save();ctx.translate(20,H/2);ctx.rotate(-Math.PI/2);ctx.fillText('Rx Power',0,0);ctx.restore();
+const allValues=indices.flatMap(i=>subscribers[i].history);
+const maxVal=Math.max(...allValues)+1,minVal=Math.min(...allValues)-1;
+const lineColors=['#00acc1','#8e24aa','#43a047','#fb8c00','#d81b60'];
+indices.forEach((idx,k)=>{
+const sub=subscribers[idx],color=lineColors[k%lineColors.length];
+ctx.strokeStyle=color;ctx.lineWidth=2.5;
+ctx.beginPath();
+for(let m=0;m<sub.history.length;m++){
+const x=padding+(m/(MONTHS_HISTORY-1))*chartW;
+const y=padding+((maxVal-sub.history[m])/(maxVal-minVal))*chartH;
+if(m===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+}
+ctx.stroke();
+});
+const yCrit=padding+((maxVal-CRITICAL_THRESHOLD)/(maxVal-minVal))*chartH;
+ctx.strokeStyle='#ef4444';ctx.setLineDash([6,4]);ctx.lineWidth=2;
+ctx.beginPath();ctx.moveTo(padding,yCrit);ctx.lineTo(W-padding,yCrit);ctx.stroke();
+ctx.setLineDash([]);
+ctx.fillStyle='#ef4444';ctx.font='12px Segoe UI';ctx.textAlign='left';
+ctx.fillText('Critical -28 dBm',W-padding-120,yCrit-5);
+}
+
+function drawROCChartManual(points,auc){
+const canvas=document.getElementById('rocChart');
+const ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+ctx.clearRect(0,0,W,H);
+const padding=50,chartW=W-padding*2,chartH=H-padding*2;
+ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=0.5;
+for(let x=padding;x<=W-padding;x+=20){ctx.beginPath();ctx.moveTo(x,padding);ctx.lineTo(x,H-padding);ctx.stroke()}
+for(let y=padding;y<=H-padding;y+=20){ctx.beginPath();ctx.moveTo(padding,y);ctx.lineTo(W-padding,y);ctx.stroke()}
+ctx.strokeStyle='#94a3b8';ctx.lineWidth=1;
+ctx.beginPath();ctx.moveTo(padding,padding);ctx.lineTo(padding,H-padding);ctx.lineTo(W-padding,H-padding);ctx.stroke();
+ctx.fillStyle='#0f172a';ctx.font='12px Segoe UI';ctx.textAlign='center';
+ctx.fillText('False Positive Rate',W/2,H-10);
+ctx.save();ctx.translate(20,H/2);ctx.rotate(-Math.PI/2);ctx.fillText('True Positive Rate',0,0);ctx.restore();
+ctx.strokeStyle='#8e24aa';ctx.setLineDash([4,4]);ctx.lineWidth=1;
+ctx.beginPath();ctx.moveTo(padding,H-padding);ctx.lineTo(W-padding,padding);ctx.stroke();
+ctx.setLineDash([]);
+ctx.strokeStyle='#00acc1';ctx.lineWidth=2.5;
+ctx.beginPath();
+points.forEach((p,i)=>{
+const x=padding+p[0]*chartW;
+const y=padding+(1-p[1])*chartH;
+if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+});
+ctx.stroke();
+ctx.fillStyle='#00acc1';ctx.font='bold 16px Segoe UI';ctx.textAlign='center';
+ctx.fillText('AUC = '+auc.toFixed(3),W/2,30);
+}
+
+// ==================== RUN ====================
+function runPrediction(){
+const seedValue=parseInt(document.getElementById('seedInput').value,10)||42;
+const rand=mulberry32(seedValue);
+const subscribers=generateSubscribers(rand);
+window.dataSource='simulation';
+processSubscribers(subscribers);
+}
+
+// ✅ Test 20 Seeds (Mean ± SD)
+function testTwentySeeds(){
+const seeds=[];for(let i=1;i<=20;i++)seeds.push(i*10+2);
+const results=[];
+seeds.forEach(seed=>{
+const rand=mulberry32(seed);
+const subscribers=generateSubscribers(rand);
+const predictions=subscribers.map(sub=>predictFailure(sub));
+const categories=predictions.map(p=>classifyRisk(p));
+const metrics=computeMetrics(subscribers,predictions,categories);
+const roc=computeROC(subscribers,predictions);
+results.push({seed,precision:metrics.precision,recall:metrics.recall,f1:metrics.f1,auc:roc.auc,accuracy:metrics.accuracy});
+});
+function mean(arr){return arr.reduce((a,b)=>a+b,0)/arr.length}
+function std(arr){const m=mean(arr);return Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length)}
+const precisions=results.map(r=>r.precision);
+const recalls=results.map(r=>r.recall);
+const f1s=results.map(r=>r.f1);
+const aucs=results.map(r=>r.auc);
+const accs=results.map(r=>r.accuracy);
+const msg=`📊 Test 20 Seeds (n=20)\n\n`+
+`Precision: ${(mean(precisions)*100).toFixed(1)}% ± ${(std(precisions)*100).toFixed(1)}%\n`+
+`Recall:    ${(mean(recalls)*100).toFixed(1)}% ± ${(std(recalls)*100).toFixed(1)}%\n`+
+`F1-Score:  ${(mean(f1s)*100).toFixed(1)}% ± ${(std(f1s)*100).toFixed(1)}%\n`+
+`AUC:       ${(mean(aucs)*100).toFixed(1)}% ± ${(std(aucs)*100).toFixed(1)}%\n`+
+`Accuracy:  ${(mean(accs)*100).toFixed(1)}% ± ${(std(accs)*100).toFixed(1)}%`;
+alert(msg);
+}
+
+function exportCSV(){
+if(!window.lastResults){alert('Please run analysis first');return}
+const{subscribers,predictions,categories}=window.lastResults;
+let csv='subscriber,group,last_rx,degradation,cause,risk_score,confidence,category,actual_state,survival,predicted_km,cable_km,error_meters,uncertainty_meters\n';
+subscribers.forEach((sub,i)=>{
+const pred=predictions[i],cat=categories[i];
+const actual=sub.actualFailure?'failure':'ok';
+const survival=pred.survivalProbabilities.join('|');
+csv+=`${sub.id},${sub.groupId},${sub.history[sub.history.length-1].toFixed(2)},${sub.degradationRate.toFixed(3)},${sub.faultType},${pred.riskScore.toFixed(1)},${pred.confidence}%,${cat},${actual},${survival},${pred.predictedFiberKm.toFixed(2)},${pred.predictedCableKm.toFixed(2)},${pred.errorMeters.toFixed(1)},${pred.uncertaintyMeters.toFixed(1)}\n`;
+});
+const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+const link=document.createElement('a');
+link.href=URL.createObjectURL(blob);
+link.download='AT-FiberPredict_Results.csv';
+link.click();
+}
+
+// ==================== PDF (نفس الدالة السابقة) ====================
+async function printReport(){
+if(!window.lastResults){alert('يرجى تشغيل التحليل أولاً');return}
+const{subscribers,predictions,categories,metrics,roc,loc}=window.lastResults;
+const loadingMsg=document.createElement('div');
+loadingMsg.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1e3a8a;color:white;padding:15px 30px;border-radius:10px;z-index:99999;font-weight:bold;';
+loadingMsg.textContent='⏳ جاري إنشاء تقرير PDF...';
+document.body.appendChild(loadingMsg);
+try{
+const signalImg=document.getElementById('signalChart').toDataURL('image/png');
+const rocImg=document.getElementById('rocChart').toDataURL('image/png');
+const longImg=document.getElementById('longitudinalChart').toDataURL('image/png');
+const sorted=subscribers.map((_,i)=>i).sort((a,b)=>predictions[b].riskScore-predictions[a].riskScore);
+const top5=sorted.slice(0,5);
+const now=new Date();
+const dateStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+let top5Rows='';
+top5.forEach(idx=>{
+const sub=subscribers[idx];
+const pred=predictions[idx];
+const cat=categories[idx];
+const bgColor=sub.actualFailure?'#fee2e2':'#f8fafc';
+top5Rows+=`<tr style="background:${bgColor};"><td style="padding:8px;border:1px solid #94a3b8;text-align:center;font-weight:bold;"><span dir="ltr">${sub.id}</span></td><td style="padding:8px;border:1px solid #94a3b8;text-align:center;"><span dir="ltr">${sub.history[sub.history.length-1].toFixed(2)}</span></td><td style="padding:8px;border:1px solid #94a3b8;text-align:center;"><span dir="ltr">${sub.degradationRate.toFixed(3)}</span></td><td style="padding:8px;border:1px solid #94a3b8;text-align:center;">${cat}</td><td style="padding:8px;border:1px solid #94a3b8;text-align:center;color:${sub.actualFailure?'#b91c1c':'#166534'};font-weight:bold;">${sub.actualFailure?'⚠️ سيتعطل':'✅ مستقر'}</td><td style="padding:8px;border:1px solid #94a3b8;text-align:center;"><span dir="ltr">${pred.errorMeters.toFixed(0)}</span></td></tr>`;
+});
+let recommendationsHtml='';
+top5.forEach(idx=>{
+const sub=subscribers[idx];
+const pred=predictions[idx];
+recommendationsHtml+=`<div style="margin-bottom:10px;padding:10px;background:white;border-right:4px solid #d81b60;border-radius:4px;"><strong style="color:#1e3a8a;">مشترك <span dir="ltr">${sub.id}</span>:</strong> <span style="color:#334155;">يُنصح بفحص المنطقة قرب <b><span dir="ltr">${pred.predictedFiberKm.toFixed(2)} كم</span></b> (${translateFaultType(sub.faultType)}) — توقع العطل خلال <span dir="ltr">${pred.predictedMonths!==Infinity?pred.predictedMonths.toFixed(1)+' شهر':'أكثر من سنة'}</span></span></div>`;
+});
+const sourceLabel=window.dataSource==='csv'?'ملف CSV خارجي':'محاكاة افتراضية (Synthetic)';
+const reportHTML=`
+<div dir="rtl" style="width:794px;background:white;padding:40px;font-family:'Tajawal',Arial,sans-serif;color:#0f172a;box-sizing:border-box;">
+<div style="text-align:center;border-bottom:4px solid #1e3a8a;padding-bottom:20px;margin-bottom:25px;">
+<h1 style="color:#1e3a8a;font-size:32px;margin:0 0 8px 0;font-weight:800;">🧠 AT-FiberPredict</h1>
+<p style="color:#64748b;font-size:16px;margin:0;">تقرير التنبؤ الوقائي لأعطال شبكات FTTH/GPON</p>
+<p style="font-size:12px;color:#94a3b8;margin:10px 0 0 0;">تاريخ التقرير: <span dir="ltr">${dateStr}</span> | المصدر: ${sourceLabel}</p>
+</div>
+<h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">1. المقاييس الرئيسية</h2>
+<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px;">
+<tr style="background:#e0f7fa;color:#006064;font-weight:bold;">
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">المشتركين</td>
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">الأعطال</td>
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">Precision</td>
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">Recall</td>
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">Specificity</td>
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">F1</td>
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">Accuracy</td>
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">AUC</td>
+<td style="padding:8px;border:1px solid #94a3b8;text-align:center;">MCC</td>
+</tr>
+<tr style="background:white;">
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;color:#1e3a8a;"><span dir="ltr">${subscribers.length}</span></td>
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;color:#d81b60;"><span dir="ltr">${metrics.tp+metrics.fn}</span></td>
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;"><span dir="ltr">${(metrics.precision*100).toFixed(1)}%</span></td>
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;"><span dir="ltr">${(metrics.recall*100).toFixed(1)}%</span></td>
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;"><span dir="ltr">${(metrics.specificity*100).toFixed(1)}%</span></td>
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;"><span dir="ltr">${(metrics.f1*100).toFixed(1)}%</span></td>
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;"><span dir="ltr">${(metrics.accuracy*100).toFixed(1)}%</span></td>
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;"><span dir="ltr">${(roc.auc*100).toFixed(1)}%</span></td>
+<td style="padding:10px;border:1px solid #94a3b8;text-align:center;font-weight:bold;"><span dir="ltr">${metrics.mcc.toFixed(3)}</span></td>
+</tr>
+</table>
+<div style="background:#f0f9ff;padding:12px;border-radius:8px;border-right:4px solid #00acc1;margin-bottom:20px;font-size:12px;">
+<b>Confusion Matrix:</b> TP=<span dir="ltr">${metrics.tp}</span> | FP=<span dir="ltr">${metrics.fp}</span> | FN=<span dir="ltr">${metrics.fn}</span> | TN=<span dir="ltr">${metrics.tn}</span><br>
+<b>MAE Location:</b> <span dir="ltr">${loc.mae.toFixed(1)}</span> m | <b>RMSE Location:</b> <span dir="ltr">${loc.rmse.toFixed(1)}</span> m
+</div>
+<h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">2. أخطر 5 مشتركين</h2>
+<table style="width:100%;border-collapse:collapse;margin-bottom:25px;font-size:11px;">
+<thead><tr style="background:#1e3a8a;color:white;">
+<th style="padding:8px;border:1px solid #94a3b8;">المشترك</th>
+<th style="padding:8px;border:1px solid #94a3b8;">آخر Rx</th>
+<th style="padding:8px;border:1px solid #94a3b8;">التدهور</th>
+<th style="padding:8px;border:1px solid #94a3b8;">التصنيف</th>
+<th style="padding:8px;border:1px solid #94a3b8;">الحالة</th>
+<th style="padding:8px;border:1px solid #94a3b8;">خطأ المسافة</th>
+</tr></thead>
+<tbody>${top5Rows}</tbody>
+</table>
+<h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">3. منحنى ROC</h2>
+<div style="text-align:center;margin-bottom:25px;"><img src="${rocImg}" style="max-width:500px;width:100%;border:1px solid #e2e8f0;border-radius:8px;"/></div>
+<h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">4. منحنيات تدهور الإشارة</h2>
+<div style="text-align:center;margin-bottom:25px;"><img src="${signalImg}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px;"/></div>
+<h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">5. المخطط الطولي</h2>
+<div style="text-align:center;margin-bottom:25px;"><img src="${longImg}" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px;"/></div>
+<h2 style="color:#1e3a8a;font-size:18px;border-right:5px solid #00acc1;padding-right:12px;margin-bottom:15px;">6. التوصيات الفنية</h2>
+<div style="background:#f8fafc;padding:15px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:25px;">${recommendationsHtml}</div>
+<div style="margin-top:40px;padding-top:20px;border-top:2px dashed #cbd5e1;display:flex;justify-content:space-between;">
+<div style="text-align:center;width:45%;"><p style="font-weight:bold;color:#1e3a8a;margin-bottom:60px;">توقيع التقني المسؤول</p><p style="border-top:1px solid #0f172a;padding-top:8px;">&nbsp;</p></div>
+<div style="text-align:center;width:45%;"><p style="font-weight:bold;color:#1e3a8a;margin-bottom:60px;">توقيع وخاتم المشرف</p><p style="border-top:1px solid #0f172a;padding-top:8px;">&nbsp;</p></div>
+</div>
+<div style="margin-top:30px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:15px;">تم إنشاء هذا التقرير تلقائياً بواسطة منصة AT-FiberPredict — النتائج مبنية على معايير ITU-T G.984 و G.652</div>
+</div>`;
+const tempDiv=document.createElement('div');
+tempDiv.style.cssText='position:fixed;top:0;left:0;width:794px;background:white;z-index:-9999;visibility:hidden;';
+tempDiv.innerHTML=reportHTML;
+document.body.appendChild(tempDiv);
+await new Promise(r=>setTimeout(r,1000));
+const originalCanvas=await html2canvas(tempDiv.firstElementChild,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false,width:794,windowWidth:794});
+document.body.removeChild(tempDiv);
+const canvas=document.createElement('canvas');
+canvas.width=originalCanvas.width;
+const ctxOrig=originalCanvas.getContext('2d');
+const imgDataOrig=ctxOrig.getImageData(0,0,originalCanvas.width,originalCanvas.height);
+const pixels=imgDataOrig.data;
+let lastContentY=originalCanvas.height;
+for(let y=originalCanvas.height-1;y>=0;y--){
+let hasContent=false;
+for(let x=0;x<originalCanvas.width;x+=5){
+const idx=(y*originalCanvas.width+x)*4;
+if(pixels[idx]<240||pixels[idx+1]<240||pixels[idx+2]<240){hasContent=true;break}
+}
+if(hasContent){lastContentY=Math.min(y+30,originalCanvas.height);break}
+}
+canvas.height=lastContentY;
+const ctx=canvas.getContext('2d');
+ctx.fillStyle='#ffffff';
+ctx.fillRect(0,0,canvas.width,canvas.height);
+ctx.drawImage(originalCanvas,0,0);
+const{jsPDF}=window.jspdf;
+const pdf=new jsPDF('p','mm','a4');
+const pdfWidth=pdf.internal.pageSize.getWidth();
+const pdfHeight=pdf.internal.pageSize.getHeight();
+const finalImgData=canvas.toDataURL('image/jpeg',0.9);
+const imgWidth=pdfWidth;
+const imgHeight=(canvas.height*imgWidth)/canvas.width;
+const pagesNeeded=Math.ceil(imgHeight/pdfHeight);
+for(let pageNum=0;pageNum<pagesNeeded;pageNum++){
+if(pageNum>0)pdf.addPage();
+const yOffset=-pageNum*pdfHeight;
+pdf.addImage(finalImgData,'JPEG',0,yOffset,imgWidth,imgHeight);
+}
+pdf.save(`AT-FiberPredict_Report_${now.toISOString().split('T')[0]}.pdf`);
+document.body.removeChild(loadingMsg);
+alert('✅ تم إنشاء التقرير بنجاح!');
+}catch(err){
+console.error('PDF error:',err);
+if(document.body.contains(loadingMsg))document.body.removeChild(loadingMsg);
+alert('حدث خطأ أثناء إنشاء PDF: '+err.message);
+}
+}
+
+function init(){
+setLanguage(currentLang);
+buildTableHeaders();
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(err=>console.log('SW failed',err))})}
+}
+init();
+</script>
 </body>
 </html>
